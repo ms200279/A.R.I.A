@@ -13,16 +13,22 @@ import { createClient } from "@/lib/supabase/browser";
  * - Google OAuth 등은 후속 단계에서 공급자 버튼을 추가한다.
  * - 실제 UX 는 최소한이며, 승인/초안 관련 UI 패턴과 섞지 않는다.
  *
- * 탭 유지 UX 메모:
- * - 사용자가 메일 링크를 눌러 인증이 완료되면, 그 인증은 같은 탭 / 새 탭 / 다른 창
- *   어디에서든 일어날 수 있다. 어느 경로든 원래 탭(= 이 페이지) 이 자동으로
- *   다음 단계로 넘어가도록 BroadcastChannel + storage + 주기 폴링 3단 구조로 감지한다.
+ * 상태 모델:
+ *   idle       — 초기/대기
+ *   sending    — OTP 발송 요청 중
+ *   pending    — 메일 발송 완료. 사용자가 링크 클릭하기를 기다리는 상태.
+ *                BroadcastChannel + storage + 세션 폴링 3단 구조로 인증 완료를 감지.
+ *   completed  — 인증 완료 감지됨. 즉시 라우팅되지만 짧게 확인 문구를 노출해
+ *                사용자에게 "자동 이동이 일어났다"는 피드백을 준다.
+ *   error      — OTP 요청 단계에서 실패. 메시지는 공급자 메시지를 그대로 노출.
  */
+type Status = "idle" | "sending" | "pending" | "completed" | "error";
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const redirectedRef = useRef(false);
 
@@ -31,7 +37,9 @@ export default function LoginPage() {
       if (redirectedRef.current) return;
       redirectedRef.current = true;
       const target = (next && next.startsWith("/") ? next : "/") as Route;
-      router.replace(target);
+      setStatus("completed");
+      // 렌더 프레임을 한 번 양보해 완료 UI 가 사용자에게 보이도록 한 뒤 이동.
+      window.setTimeout(() => router.replace(target), 0);
     },
     [router],
   );
@@ -50,9 +58,9 @@ export default function LoginPage() {
     };
   }, [supabase, goNext]);
 
-  // "보냄" 상태에서만 감지 루프를 돌린다.
+  // "pending" 상태에서만 감지 루프를 돌린다.
   useEffect(() => {
-    if (status !== "sent") return;
+    if (status !== "pending") return;
 
     const checkSession = async () => {
       try {
@@ -104,7 +112,7 @@ export default function LoginPage() {
         setMessage(error.message);
         return;
       }
-      setStatus("sent");
+      setStatus("pending");
       setMessage("로그인 링크를 이메일로 보냈습니다. 이 창은 닫지 마세요.");
     } catch (error) {
       setStatus("error");
@@ -113,11 +121,21 @@ export default function LoginPage() {
   }
 
   function onUseDifferentEmail() {
+    redirectedRef.current = false;
     setStatus("idle");
     setMessage(null);
   }
 
-  if (status === "sent") {
+  if (status === "completed") {
+    return (
+      <section className="space-y-3">
+        <h1 className="text-2xl font-semibold">로그인 확인됨</h1>
+        <p className="text-sm opacity-75">대시보드로 이동하는 중입니다...</p>
+      </section>
+    );
+  }
+
+  if (status === "pending") {
     return (
       <section className="space-y-6">
         <header className="space-y-1">
