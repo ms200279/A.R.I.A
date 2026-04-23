@@ -1,11 +1,8 @@
 import "server-only";
 
-import {
-  createMemoDraft,
-  listMemos,
-  searchMemos,
-} from "@/lib/memos";
+import { listMemos, searchMemos } from "@/lib/memos";
 import { logAssistantToolBlocked, logAssistantToolInvoked } from "@/lib/logging/audit-log";
+import { detectSensitiveContent } from "@/lib/safety";
 
 import { getWeatherAdapter } from "./adapters/weather";
 import { getWebSearchAdapter } from "./adapters/web-search";
@@ -157,12 +154,21 @@ async function runSearchWeb(raw: unknown): Promise<ToolResult> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// proposal tool
+// proposal tool (read-first 단계에서는 pending_action 을 만들지 않는다)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * propose_save_memo — proposal-only.
+ *
+ * 이번 단계 정책:
+ *  - 절대 DB 에 쓰지 않는다. pending_actions 도 만들지 않는다.
+ *  - "이러이러한 내용으로 저장안을 만들 수 있습니다" 라는 구조화된 미리보기만 반환한다.
+ *  - 모델은 이 결과를 받아서 사용자에게 "저장하시려면 메모 저장 UI 에서 확인해 주세요" 라고 안내한다.
+ *  - 실제 pending_action 생성은 사용자가 UI(/memos Quick Capture) 에서 명시적으로 수행한다.
+ */
 async function runProposeSaveMemo(
   raw: unknown,
-  ctx: AssistantRunContext,
+  _ctx: AssistantRunContext,
 ): Promise<ToolResult> {
   const parsed = ProposeSaveMemoArgs.safeParse(raw);
   if (!parsed.success) {
@@ -173,27 +179,24 @@ async function runProposeSaveMemo(
     };
   }
 
-  // assistant 경유 저장은 모델이 명시적으로 호출한 시점에 사용자의 명시 의도가 있다고 본다.
-  // (system prompt 가 그 조건을 강제한다)
-  const result = await createMemoDraft(
-    {
-      content: parsed.data.content,
+  const content = parsed.data.content;
+  const sensitivityMatches = detectSensitiveContent(content);
+
+  return {
+    kind: "data",
+    name: "propose_save_memo",
+    payload: {
+      kind: "proposal_preview",
+      would_save: false,
       title: parsed.data.title ?? null,
       project_key: parsed.data.project_key ?? null,
-      source_type: "chat",
-      explicit: true,
+      content_preview: content.trim().slice(0, 200),
+      content_length: content.length,
+      sensitivity_flag: sensitivityMatches.length > 0,
+      sensitivity_categories: sensitivityMatches.map((m) => m.category),
+      // 모델에게 보내는 가이드: 저장은 사용자가 UI 에서 명시적으로 해야 한다.
+      note: "This is a proposal preview only. No pending_action was created. The user must confirm via the memo UI.",
     },
-    { user_id: ctx.user_id, user_email: ctx.user_email ?? null },
-  );
-
-  if (result.status === "blocked") {
-    return { kind: "blocked", name: "propose_save_memo", reason: result.reason };
-  }
-  return {
-    kind: "pending_action",
-    name: "propose_save_memo",
-    pending_action_id: result.pending_action_id,
-    sensitivity_flag: result.sensitivity_flag,
   };
 }
 

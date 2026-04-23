@@ -1,25 +1,28 @@
 import "server-only";
 
-import type {
-  Response as OpenAIResponse,
-  ResponseFunctionToolCall,
-  ResponseInputItem,
-} from "openai/resources/responses/responses";
-
+import { evaluateAssistantPreGate } from "@/lib/policies/assistant";
 import {
+  logAssistantPolicyBlocked,
+  logAssistantProviderError,
   logAssistantRequestReceived,
   logAssistantRunCompleted,
   logAssistantRunFailed,
 } from "@/lib/logging/audit-log";
+import { writePolicyLog } from "@/lib/logging/policy-log";
 
-import { getOpenAI, resolveMaxIterations, resolveModelName } from "./client";
+import { resolveMaxIterations } from "./client";
 import { executeTool } from "./execute-tool";
+import { resolveProvider, resolveProviderName } from "./providers";
+import type {
+  AssistantProvider,
+  AssistantProviderRunResult,
+  ProviderToolExecutor,
+} from "./providers";
 import { mapAssistantAnswer } from "./response-mapper";
 import { SYSTEM_PROMPT } from "./system-prompt";
-import { TOOL_DEFS, TOOL_TIERS, type ToolName } from "./tools";
+import { NEUTRAL_TOOL_DEFS, TOOL_TIERS, type ToolName } from "./tools";
 import type {
   AssistantRunContext,
-  RunAssistantFailure,
   RunAssistantResult,
   ToolCallTrace,
   ToolResult,
@@ -30,31 +33,33 @@ export type RunAssistantInput = {
   ctx: AssistantRunContext;
 };
 
-export type RunAssistantOutput =
-  | { ok: true; data: RunAssistantResult }
-  | { ok: false; failure: RunAssistantFailure };
+export type RunAssistantOutput = {
+  ok: true;
+  data: RunAssistantResult;
+  provider: string;
+};
 
 /**
  * Assistant 실행 루프.
  *
  * 흐름:
- *   1. developer(system) + user 메시지로 Responses API 호출.
- *   2. response.output 에서 function_call 을 뽑아 각 도구를 서버 측에서 실행.
- *   3. function_call_output 들을 previous_response_id 와 함께 재주입.
- *   4. 도구 호출이 더 이상 없을 때 최종 텍스트를 확보하고 매핑.
+ *   1. pre-gate 정책 평가: 명시적 금지 명령은 LLM 호출 없이 blocked 로 즉시 종료.
+ *   2. provider 해석: ASSISTANT_PROVIDER env 로 gemini | openai 선택.
+ *   3. provider.run 에 tool executor 콜백을 넘겨 루프 위임.
+ *   4. 도구 호출은 executeTool 이 티어/스키마/정책을 모두 검증한다.
+ *   5. provider 오류 / 반복 상한 초과는 graceful 하게 blocked answer 로 정규화.
  *
- * 안전장치:
- *   - MAX_ITERATIONS 루프 상한(기본 5). 초과 시 iteration_limit 실패로 종료.
- *   - 도구 호출은 executeTool 이 티어/스키마/정책을 모두 검증한다.
- *   - 에러가 루프를 타고 올라가도 호출부(Route Handler)가 JSON 으로 감쌀 수 있도록
- *     run-assistant 자체는 throw 하지 않고 `{ ok: false, failure }` 로 반환한다.
+ * 규약:
+ *   - 이 함수는 throw 하지 않는다. 항상 `{ ok: true, data, provider }` 를 반환한다.
+ *   - 결과의 answer.kind 로 성공/차단/승인대기/명료화 구분을 전달한다.
+ *   - 내부적으로 뚫린 예외는 모두 log + answer=blocked 로 흡수한다.
  */
 export async function runAssistant(
   input: RunAssistantInput,
 ): Promise<RunAssistantOutput> {
   const { userMessage, ctx } = input;
-  const model = resolveModelName();
   const maxIterations = resolveMaxIterations();
+  const providerName = resolveProviderName();
 
   await logAssistantRequestReceived({
     actor_id: ctx.user_id,
@@ -63,95 +68,126 @@ export async function runAssistant(
     message_length: userMessage.length,
   });
 
-  const client = safeGetClient();
-  if (!client.ok) return client;
-
-  let current: OpenAIResponse;
-  try {
-    current = await client.value.responses.create({
-      model,
-      input: [
-        { role: "developer", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      tools: TOOL_DEFS,
+  // 1) pre-gate
+  const gate = evaluateAssistantPreGate(userMessage);
+  if (gate.decision === "block") {
+    await logAssistantPolicyBlocked({
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      session_id: ctx.session_id ?? null,
+      reason: gate.reason,
+      matched_pattern: gate.matched_pattern,
     });
+    await writePolicyLog({
+      event_type: "assistant.pre_gate.blocked",
+      module_name: "assistant.policy",
+      actor_type: "user",
+      actor_id: ctx.user_id,
+      decision: "denied",
+      rule: gate.reason,
+      target_type: "assistant_run",
+      metadata: {
+        matched_pattern: gate.matched_pattern,
+        session_id: ctx.session_id ?? null,
+      },
+    });
+    return finalizeBlocked({
+      providerName,
+      reason: gate.reason,
+      message: gate.user_message,
+    });
+  }
+
+  // 2) provider resolve
+  let provider: AssistantProvider;
+  try {
+    provider = resolveProvider();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    await logAssistantProviderError({
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      session_id: ctx.session_id ?? null,
+      provider: providerName,
+      error_message: message,
+    });
     await logAssistantRunFailed({
       actor_id: ctx.user_id,
       actor_email: ctx.user_email ?? null,
       session_id: ctx.session_id ?? null,
-      error_code: "openai_failed",
+      error_code: "provider_not_configured",
       error_message: message,
     });
-    return { ok: false, failure: { error: "openai_failed", message } };
+    return finalizeBlocked({
+      providerName,
+      reason: "provider_not_configured",
+      message:
+        "assistant provider 가 아직 설정되지 않았습니다. 서버 환경변수를 확인해 주세요.",
+    });
   }
 
+  // 3) tool executor + trace 집계
   const toolTrace: ToolCallTrace[] = [];
   const pendingActionIds: string[] = [];
-
-  let iterations = 1;
-  for (let step = 0; step < maxIterations; step += 1) {
-    const calls = extractFunctionCalls(current);
-    if (calls.length === 0) break;
-
-    const outputItems: ResponseInputItem[] = [];
-    for (const call of calls) {
-      const args = safeParseJSONArgs(call.arguments);
-      const result = await executeTool(call.name, args, ctx);
-      trackTrace(toolTrace, call.name, result, step);
-      if (result.kind === "pending_action") {
-        pendingActionIds.push(result.pending_action_id);
-      }
-      outputItems.push({
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: JSON.stringify(result),
-      });
+  const toolExecutor: ProviderToolExecutor = async (name, args) => {
+    const result = await executeTool(name, args, ctx);
+    trackTrace(toolTrace, name, result, toolTrace.length);
+    if (result.kind === "pending_action") {
+      pendingActionIds.push(result.pending_action_id);
     }
+    return result;
+  };
 
-    try {
-      current = await client.value.responses.create({
-        model,
-        previous_response_id: current.id,
-        input: outputItems,
-        tools: TOOL_DEFS,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      await logAssistantRunFailed({
-        actor_id: ctx.user_id,
-        actor_email: ctx.user_email ?? null,
-        session_id: ctx.session_id ?? null,
-        error_code: "openai_failed",
-        error_message: message,
-      });
-      return { ok: false, failure: { error: "openai_failed", message } };
-    }
-    iterations += 1;
-
-    if (step === maxIterations - 1 && extractFunctionCalls(current).length > 0) {
-      await logAssistantRunFailed({
-        actor_id: ctx.user_id,
-        actor_email: ctx.user_email ?? null,
-        session_id: ctx.session_id ?? null,
-        error_code: "iteration_limit",
-        error_message: `exceeded ${maxIterations} iterations`,
-      });
-      return {
-        ok: false,
-        failure: {
-          error: "iteration_limit",
-          message: "assistant tool loop did not converge",
-        },
-      };
-    }
+  // 4) provider.run
+  let runResult: AssistantProviderRunResult;
+  try {
+    runResult = await provider.run({
+      systemPrompt: SYSTEM_PROMPT,
+      userMessage,
+      tools: NEUTRAL_TOOL_DEFS,
+      toolExecutor,
+      maxIterations,
+    });
+  } catch (err) {
+    // provider.run 은 내부에서 에러를 먹고 ok:false 를 돌려주도록 되어 있지만,
+    // 방어적으로 한 번 더 감싼다.
+    const message = err instanceof Error ? err.message : String(err);
+    runResult = { ok: false, error: "provider_error", message };
   }
 
-  const finalText = extractFinalText(current);
+  // 5) provider 실패 → graceful blocked
+  if (!runResult.ok) {
+    if (runResult.error === "provider_error") {
+      await logAssistantProviderError({
+        actor_id: ctx.user_id,
+        actor_email: ctx.user_email ?? null,
+        session_id: ctx.session_id ?? null,
+        provider: provider.name,
+        error_message: runResult.message,
+      });
+    }
+    await logAssistantRunFailed({
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      session_id: ctx.session_id ?? null,
+      error_code: runResult.error,
+      error_message: runResult.message,
+    });
+    return finalizeBlocked({
+      providerName: provider.name,
+      reason: runResult.error,
+      message:
+        runResult.error === "iteration_limit"
+          ? "응답을 정리하지 못했습니다. 질문을 조금 더 구체적으로 말씀해 주세요."
+          : "응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+      toolTrace,
+      pendingActionIds,
+    });
+  }
+
+  // 6) 성공 → answer 매핑
   const answer = mapAssistantAnswer({
-    finalText,
+    finalText: runResult.finalText,
     toolTrace,
     pendingActionIds,
   });
@@ -161,69 +197,50 @@ export async function runAssistant(
     actor_email: ctx.user_email ?? null,
     session_id: ctx.session_id ?? null,
     answer_kind: answer.kind,
-    iterations,
+    iterations: runResult.iterations,
     pending_action_count: pendingActionIds.length,
     tool_call_count: toolTrace.length,
   });
 
   return {
     ok: true,
+    provider: provider.name,
     data: {
       answer,
-      raw_text: finalText,
+      raw_text: runResult.finalText,
       tool_trace: toolTrace,
       pending_action_ids: pendingActionIds,
-      iterations,
+      iterations: runResult.iterations,
     },
   };
 }
 
-function safeGetClient():
-  | { ok: true; value: ReturnType<typeof getOpenAI> }
-  | { ok: false; failure: RunAssistantFailure } {
-  try {
-    return { ok: true, value: getOpenAI() };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      failure: { error: "openai_failed", message },
-    };
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
-function extractFunctionCalls(resp: OpenAIResponse): ResponseFunctionToolCall[] {
-  const out: ResponseFunctionToolCall[] = [];
-  for (const item of resp.output) {
-    if (item.type === "function_call") out.push(item);
-  }
-  return out;
-}
-
-function extractFinalText(resp: OpenAIResponse): string {
-  if (typeof resp.output_text === "string" && resp.output_text.trim()) {
-    return resp.output_text;
-  }
-  const parts: string[] = [];
-  for (const item of resp.output) {
-    if (item.type === "message" && Array.isArray(item.content)) {
-      for (const c of item.content) {
-        if (c.type === "output_text" && typeof c.text === "string") {
-          parts.push(c.text);
-        }
-      }
-    }
-  }
-  return parts.join("\n").trim();
-}
-
-function safeParseJSONArgs(raw: string): unknown {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
+function finalizeBlocked(params: {
+  providerName: string;
+  reason: string;
+  message: string;
+  toolTrace?: ToolCallTrace[];
+  pendingActionIds?: string[];
+}): RunAssistantOutput {
+  return {
+    ok: true,
+    provider: params.providerName,
+    data: {
+      answer: {
+        kind: "blocked",
+        message: params.message,
+        reason: params.reason,
+      },
+      raw_text: "",
+      tool_trace: params.toolTrace ?? [],
+      pending_action_ids: params.pendingActionIds ?? [],
+      iterations: 0,
+    },
+  };
 }
 
 function trackTrace(

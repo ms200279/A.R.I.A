@@ -21,13 +21,18 @@
 
 ### `/api/assistant`
 
-- `POST /api/assistant/query` — 자연어 요청 진입점.
-  - 서버 전용 OpenAI Responses API + function calling 으로 구동된다.
+- `POST /api/assistant/query` — 자연어 요청 진입점 (read-first).
+  - 서버 전용 **provider-agnostic** assistant 로 구동된다.
+    - 기본 provider: **Gemini** (`@google/genai`).
+    - 대체 provider: **OpenAI** Responses API. `ASSISTANT_PROVIDER=openai` 로 전환.
   - 본문: `{ message: string, session_id?: string | null }`.
-  - 응답: `{ answer: AssistantAnswer, tool_trace, pending_action_ids, iterations }`.
+  - 응답: `{ answer: AssistantAnswer, tool_trace, pending_action_ids, iterations, provider }`.
   - `AssistantAnswer.kind` ∈ `direct_answer | clarification_question | proposed_action | approval_required | blocked`.
-  - 쓰기 계열 tool (현재는 `propose_save_memo`) 은 직접 실행하지 않고 `pending_actions` 를 생성한다.
-  - 모델은 절대 브라우저에서 호출하지 않는다. 모든 호출은 Route Handler → `lib/assistant.runAssistant` 경유.
+  - HTTP 상태는 auth(401) / body 검증(400) 에서만 비-200. provider/도구/정책 오류는 **항상 200 + `answer.kind=blocked`** 으로 정규화(graceful failure).
+  - **Pre-gate 정책**: 메일 발송/삭제/공유/웹 자동화 같은 명령형 금지 요청은 LLM 호출 없이 즉시 `blocked` 응답과 `assistant.policy.blocked` 감사 로그가 남는다.
+  - 쓰기 계열 tool (현재는 `propose_save_memo`) 은 이번 단계에서 **pending_action 을 만들지 않는다**. proposal 미리보기만 반환하고, 실제 저장은 사용자가 `/memos` UI 에서 명시적으로 수행한다.
+  - 연결된 read-first 도구: `get_recent_memos`, `search_memos`, `get_weather` (adapter 미설정 시 `not_configured`), `search_web` (adapter 미설정 시 `not_configured`).
+  - 모델은 절대 브라우저에서 호출하지 않는다. 모든 호출은 Route Handler → `lib/assistant.runAssistant` → `lib/assistant/providers` 경유.
 
 ### `/api/documents`
 
