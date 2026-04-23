@@ -82,10 +82,30 @@
 
 ### `/api/approvals`
 
-- `GET   /api/approvals` — 대기 목록
-- `GET   /api/approvals/[id]` — 단건
-- `POST  /api/approvals/[id]/confirm` — 승인 후 실제 실행 트리거
-- `POST  /api/approvals/[id]/reject` — 거절
+- `GET   /api/approvals` — 현재 사용자의 `awaiting_approval` 목록 (RLS 경유, `{ items: SaveMemoPending[] }`).
+- `POST  /api/approvals/[id]/confirm` — 승인 후 실제 실행 트리거.
+  - 도메인 로직: `lib/approvals.confirmPendingAction(id, actor)` → action_type 별 위임 (`save_memo` → `lib/memos.executeApprovedMemo`).
+  - 상태 전이: `awaiting_approval → approved → executed` (성공) / `awaiting_approval → blocked` (payload/정책 재검증 실패) / 실행 실패 시 `approved → awaiting_approval` 로 rollback.
+  - 검증: service_role 재조회로 소유자/action_type/status 확인 → `SaveMemoPayloadSchema` Zod parse → `detectSensitiveContent` 로 `sensitivity_flag` 재산출 → optimistic claim → `memos` INSERT.
+  - 응답 & HTTP 매핑:
+    - `{ status:"executed", action_type:"save_memo", memo_id }` → 200.
+    - `{ status:"blocked",  action_type, reason }` → 200 (정책 결정이므로 4xx/5xx 아님).
+    - `{ error:"not_found" }` → 404 (소유자 불일치 또는 존재하지 않음).
+    - `{ error:"invalid_status", action_type, current_status }` → 409 (이미 executed/rejected/blocked 등).
+    - `{ error:"unsupported_action_type", action_type }` → 400.
+    - `{ error:<reason>, action_type }` → 500 (claim_failed / memo_insert_failed 등 일시적 오류).
+  - 감사 로그: `memo.approval.executed` (성공) / `memo.approval.blocked` (정책·payload 차단).
+- `POST  /api/approvals/[id]/reject` — 사용자 거절.
+  - 도메인 로직: `lib/approvals.rejectPendingAction(id, actor)` → `lib/memos.rejectMemoAction`.
+  - 상태 전이: `awaiting_approval → rejected`. `memos` 에는 쓰지 않는다.
+  - 응답 & HTTP 매핑:
+    - `{ status:"rejected", action_type:"save_memo" }` → 200.
+    - `not_found` / `invalid_status` / `unsupported_action_type` / `error` 는 confirm 과 동일 매핑.
+  - 감사 로그: `memo.approval.rejected`.
+
+정책 요약 (memos write):
+- `memos` 에 대한 INSERT 경로는 서버의 `executeApprovedMemo` 단 하나. confirm 이전에는 어떤 경로로도 insert 되지 않는다.
+- 이미 `executed` / `rejected` / `blocked` / `approved` 인 pending_action 은 재confirm/재reject 가 모두 409 로 차단된다.
 
 ## 금지된 엔드포인트 (의도적으로 만들지 않음)
 

@@ -259,6 +259,36 @@ export async function logMemoApprovalRejected(
   });
 }
 
+export type MemoApprovalBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+  reason: string;
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * confirm 단계에서 payload 재검증/정책 재검사가 실패해
+ * pending_action 이 blocked 로 전이된 경우.
+ * memos 테이블에는 어떤 쓰기도 일어나지 않는다.
+ */
+export async function logMemoApprovalBlocked(
+  params: MemoApprovalBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.approval.blocked",
+    result: "failure",
+    module_name: "memos.approval",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "pending_action",
+    target_id: params.pending_action_id,
+    error_code: params.reason,
+    metadata: params.metadata ?? null,
+  });
+}
+
 export type MemoSummarizedParams = {
   actor_id: string;
   actor_email?: string | null;
