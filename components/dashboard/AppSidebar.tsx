@@ -1,16 +1,24 @@
+import Link from "next/link";
+
 import LogoutButton from "@/app/(dashboard)/_components/logout-button";
 
 import SidebarLink from "./SidebarLink";
 
 type Props = {
   userEmail: string | null;
+  /** static: 데스크톱 고정 패널. drawer: 모바일 오버레이. */
+  variant?: "static" | "drawer";
+  /** 데스크톱에서 사이드바 접기 */
+  onCollapseDesktop?: () => void;
+  /** drawer 전용 닫기 */
+  onCloseDrawer?: () => void;
 };
 
 /**
  * 좌측 고정 사이드바.
  *
  * 구조:
- *   상단: 서비스 마크 (A.R.I.A)
+ *   상단: 서비스 마크 (A.R.I.A) — 클릭 시 메인(`/`)으로 이동
  *   중앙: 섹션 메뉴
  *   하단: 사용자 이메일 + 로그아웃
  *
@@ -18,18 +26,80 @@ type Props = {
  * `disabled` 플래그로 톤을 낮춰 노출한다. 사이드바 IA 를 유지하되,
  * 실제로 클릭하면 존재하지 않는 경로로 이동하는 일이 없도록 href 는 `/` 로 둔다.
  */
-export default function AppSidebar({ userEmail }: Props) {
+export default function AppSidebar({
+  userEmail,
+  variant = "static",
+  onCollapseDesktop,
+  onCloseDrawer,
+}: Props) {
+  const showCollapse = variant === "static" && onCollapseDesktop;
+  const showDrawerClose = variant === "drawer" && onCloseDrawer;
+
   return (
-    <aside className="flex h-full w-full flex-col border-r border-white/5 bg-[var(--bg-raised)]/80 backdrop-blur">
-      <div className="flex items-center gap-2.5 px-5 pt-5 pb-6">
-        <LogoMark />
-        <div className="leading-none">
-          <div className="text-sm font-semibold tracking-[0.18em] text-[var(--text-primary)]">
-            A.R.I.A
+    <aside
+      id={variant === "static" ? "app-sidebar-desktop" : undefined}
+      className="flex h-full w-full flex-col border-r border-white/5 bg-[var(--bg-raised)]/80 backdrop-blur"
+    >
+      <div className="flex items-start gap-2 px-4 pt-4 pb-5 sm:px-5 sm:pt-5">
+        <Link
+          href="/"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg outline-none ring-[var(--accent)] focus-visible:ring-2"
+        >
+          <LogoMark />
+          <div className="min-w-0 leading-none">
+            <div className="text-sm font-semibold tracking-[0.18em] text-[var(--text-primary)]">
+              A.R.I.A
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+              understanding assistant
+            </div>
           </div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
-            understanding assistant
-          </div>
+        </Link>
+        <div className="flex shrink-0 flex-col gap-1 pt-0.5">
+          {showDrawerClose ? (
+            <button
+              type="button"
+              onClick={onCloseDrawer}
+              className="inline-flex rounded-md p-1.5 text-[var(--text-tertiary)] hover:bg-white/[0.06] hover:text-[var(--text-primary)] lg:hidden"
+              aria-label="메뉴 닫기"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          ) : null}
+          {showCollapse ? (
+            <button
+              type="button"
+              onClick={onCollapseDesktop}
+              className="hidden rounded-md p-1.5 text-[var(--text-tertiary)] hover:bg-white/[0.06] hover:text-[var(--text-primary)] lg:inline-flex"
+              aria-label="사이드바 접기"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -93,13 +163,13 @@ function SectionLabel({
 
 /* ────────────────────────────────────────────────────────────
  * 아이콘 (Lucide 스타일 inline SVG. 외부 라이브러리 없음)
- * ───────────────────────────────────────────────────────── */
+ * ─────────────────────────────────────────────────────────── */
 
 function LogoMark() {
   return (
     <div
       aria-hidden
-      className="relative h-8 w-8 rounded-lg border border-white/10 bg-gradient-to-br from-[color:var(--accent-soft)] to-white/[0.02]"
+      className="relative h-8 w-8 shrink-0 rounded-lg border border-white/10 bg-gradient-to-br from-[color:var(--accent-soft)] to-white/[0.02]"
     >
       <div className="absolute inset-1 rounded-md bg-[radial-gradient(circle_at_30%_30%,rgba(199,212,255,0.8),rgba(155,180,255,0.15)_50%,transparent_70%)]" />
     </div>

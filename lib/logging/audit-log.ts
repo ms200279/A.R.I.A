@@ -321,9 +321,11 @@ export type SummarizerRequestParams = {
   actor_id: string;
   actor_email?: string | null;
   resource_id: string;
+  resource_kind?: string;
   content_length: number;
   title_present: boolean;
   intended_provider: "gemini" | "rule" | "auto";
+  regenerate?: boolean;
 };
 
 export async function logSummarizerRequestReceived(
@@ -336,12 +338,49 @@ export async function logSummarizerRequestReceived(
     actor_type: "user",
     actor_id: params.actor_id,
     actor_email: params.actor_email ?? null,
-    target_type: "memo",
+    target_type: params.resource_kind ?? "memo",
     target_id: params.resource_id,
     metadata: {
       content_length: params.content_length,
       title_present: params.title_present,
       intended_provider: params.intended_provider,
+      resource_kind: params.resource_kind ?? "memo",
+      regenerate: params.regenerate ?? null,
+      phase: "started",
+    },
+  });
+}
+
+export type SummarizerSafetyEvaluatedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  resource_id: string;
+  resource_kind: string;
+  allow_provider: boolean;
+  policy_blocked: boolean;
+  policy_reason?: string | null;
+  warning: boolean;
+  sensitivity_categories: string[];
+};
+
+export async function logSummarizerSafetyEvaluated(
+  params: SummarizerSafetyEvaluatedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "summarizer.safety.evaluated",
+    result: params.policy_blocked ? "failure" : "success",
+    module_name: "summarizer.safety",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: params.resource_kind,
+    target_id: params.resource_id,
+    metadata: {
+      allow_provider: params.allow_provider,
+      policy_blocked: params.policy_blocked,
+      policy_reason: params.policy_reason ?? null,
+      warning: params.warning,
+      sensitivity_categories: params.sensitivity_categories,
     },
   });
 }
@@ -350,9 +389,14 @@ export type SummarizerProviderResolvedParams = {
   actor_id: string;
   actor_email?: string | null;
   resource_id: string;
+  resource_kind?: string;
   provider: string;
   model: string | null;
   strategy: string;
+  chunked?: boolean;
+  chunk_count?: number | null;
+  safety_skipped_provider?: boolean;
+  extra_metadata?: Record<string, unknown> | null;
 };
 
 export async function logSummarizerProviderResolved(
@@ -365,12 +409,16 @@ export async function logSummarizerProviderResolved(
     actor_type: "user",
     actor_id: params.actor_id,
     actor_email: params.actor_email ?? null,
-    target_type: "memo",
+    target_type: params.resource_kind ?? "memo",
     target_id: params.resource_id,
     metadata: {
       provider: params.provider,
       model: params.model,
       strategy: params.strategy,
+      chunked: params.chunked ?? null,
+      chunk_count: params.chunk_count ?? null,
+      safety_skipped_provider: params.safety_skipped_provider ?? null,
+      ...(params.extra_metadata ?? {}),
     },
   });
 }
@@ -393,7 +441,7 @@ export async function logSummarizerGeminiFailed(
     actor_type: "user",
     actor_id: params.actor_id,
     actor_email: params.actor_email ?? null,
-    target_type: "memo",
+    target_type: "summarizer",
     target_id: params.resource_id,
     error_code: params.error_code,
     error_message: params.error_message ?? null,
@@ -419,7 +467,7 @@ export async function logSummarizerFallbackUsed(
     actor_type: "user",
     actor_id: params.actor_id,
     actor_email: params.actor_email ?? null,
-    target_type: "memo",
+    target_type: "summarizer",
     target_id: params.resource_id,
     metadata: {
       from_provider: params.from_provider,
@@ -576,6 +624,30 @@ export type MemoSummarizeSkippedParams = {
   strategy: string;
 };
 
+export type MemoSummarizePolicyBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  memo_id: string;
+  policy_reason: string;
+};
+
+export async function logMemoSummarizePolicyBlocked(
+  params: MemoSummarizePolicyBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.summarize.policy_blocked",
+    result: "failure",
+    module_name: "memos.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    error_code: params.policy_reason,
+    metadata: { policy_reason: params.policy_reason },
+  });
+}
+
 /**
  * if_empty 모드에서 이미 summary 가 있어 요약을 생략한 경우. 별도 `memo.summarized` 는 남기지 않는다.
  */
@@ -592,6 +664,139 @@ export async function logMemoSummarizeSkipped(
     target_type: "memo",
     target_id: params.memo_id,
     metadata: { reason: params.reason, strategy: params.strategy },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Document helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DocumentSummarizeStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  regenerate: boolean;
+  input_source: "document_chunks" | "parsed_text";
+  chunk_row_count: number | null;
+  sanitized_content_length: number;
+};
+
+export async function logDocumentSummarizeStarted(
+  params: DocumentSummarizeStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.summarize.started",
+    result: "success",
+    module_name: "documents.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      regenerate: params.regenerate,
+      input_source: params.input_source,
+      chunk_row_count: params.chunk_row_count,
+      sanitized_content_length: params.sanitized_content_length,
+    },
+  });
+}
+
+export type DocumentSummarizeSkippedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  reason: "if_empty_already_set";
+};
+
+export async function logDocumentSummarizeSkipped(
+  params: DocumentSummarizeSkippedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.summarize.skipped",
+    result: "success",
+    module_name: "documents.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: { reason: params.reason },
+  });
+}
+
+export type DocumentSummarizePolicyBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  policy_reason: string;
+};
+
+export async function logDocumentSummarizePolicyBlocked(
+  params: DocumentSummarizePolicyBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.summarize.policy_blocked",
+    result: "failure",
+    module_name: "documents.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.policy_reason,
+    metadata: { policy_reason: params.policy_reason },
+  });
+}
+
+export type DocumentSummarizedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  strategy: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export async function logDocumentSummarized(
+  params: DocumentSummarizedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.summarized",
+    result: "success",
+    module_name: "documents.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      strategy: params.strategy,
+      ...((params.metadata as Record<string, unknown> | null | undefined) ?? {}),
+    },
+  });
+}
+
+export type DocumentSummaryPersistFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  error_message?: string | null;
+};
+
+export async function logDocumentSummaryPersistFailed(
+  params: DocumentSummaryPersistFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.summary.persist.failed",
+    result: "failure",
+    module_name: "documents.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: "persist_failed",
+    error_message: params.error_message ?? null,
   });
 }
 

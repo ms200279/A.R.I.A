@@ -1,16 +1,23 @@
 /**
- * 문서/메일 등으로 확장할 수 있게 resource 를 추상 id 로 둔다. 메모는 `memoId === resourceId`.
+ * 공통 요약 계약. 메모·문서·메일이 동일 SummarizerAdapter 를 공유한다.
+ * 문서 저장(`document_chunks` / `document_summaries`)·메일 비신뢰 원문은 후속 단계에서 연결.
  */
+
+export type ResourceKind = "memo" | "document" | "mail";
+
 export type SummarizerInput = {
   userId: string;
+  resourceKind: ResourceKind;
   resourceId: string;
   title: string | null;
   content: string;
-  /** 원본 요약(재요약 맥락용; 프롬프트에는 과도한 노출을 피해 최소한만). */
   existingSummary: string | null;
+  /** true 이면 기존 요약을 보강 맥락으로 쓸 수 있다(프롬프트 노출 최소화). */
+  regenerate?: boolean;
+  metadata?: Record<string, unknown>;
   /**
-   * 호출 측 정책 힌트(선택). 실제 if_empty 스킵은 `lib/memos/summarize-memo`에서 처리.
-   * 어댑터는 regenerate 기준 본문만 요약에 사용한다.
+   * 메모 API `mode` 와의 호환. 어댑터는 `regenerate` 를 우선한다.
+   * @deprecated 신규 코드는 `regenerate` 만 사용.
    */
   mode?: "regenerate" | "if_empty";
 };
@@ -24,6 +31,8 @@ export type SummarizerOutput = {
   provider: "gemini" | "rule";
   model: string | null;
   strategy: "rule_based_v1" | "gemini" | "fallback";
+  chunked: boolean;
+  chunkCount?: number;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -33,10 +42,10 @@ export type SummarizerOutput = {
   metadata?: Record<string, unknown>;
 };
 
-/**
- * 제네릭 요약기. memos/문서/메일이 동일 계약을 공유한다.
- */
-export type Summarizer = {
+export type SummarizerAdapter = {
   readonly id: string;
   summarize(input: SummarizerInput): Promise<SummarizerOutput>;
 };
+
+/** @deprecated `SummarizerAdapter` 사용 */
+export type Summarizer = SummarizerAdapter;

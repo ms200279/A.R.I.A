@@ -13,6 +13,11 @@ export type SummarizerProviderChoice = "gemini" | "rule" | "auto";
 
 const SUMMARY_MAX_CHARS_DB = 2000;
 
+/**
+ * Gemini 1-pass·청크 단위 입력 상한(비용·지연). 초과 시 `chunking.ts` 로 분할 후 합성.
+ */
+export const MAX_USER_CONTENT_CHARS = 14_000;
+
 export function getSummaryMaxLengthForStore(): number {
   return SUMMARY_MAX_CHARS_DB;
 }

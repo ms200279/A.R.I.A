@@ -46,7 +46,7 @@
 - `GET  /api/documents` — 소유 문서 목록
 - `GET  /api/documents/[id]` — 문서 메타
 - `POST /api/documents` — 업로드 (metadata + storage path)
-- `POST /api/documents/[id]/summarize` — 요약 요청
+- `POST /api/documents/[id]/summarize` — 요약 요청. `lib/documents/summarize-document`: `document_chunks`(우선) 또는 `parsed_text` → 비신뢰 전처리(`prepareDocument*ForSummarize`) → `ResourceKind.document` 로 `runSummarizerWithFallback`(청크·합성은 summarizer 내부). 결과는 `document_summaries` 에 `summary_type=summary` **UPSERT**(문서당 1행). body/query `mode`: `regenerate`(기본) \| `if_empty`. 빈 본문·정책 초과는 400. 감사: `document.summarize.started` → `summarizer.request.received` → `summarizer.safety.evaluated`(내부) → (Gemini 실패 시 fallback 로그) → `summarizer.provider.resolved` → `document.summarized` \| `document.summary.persist.failed`.
 - `POST /api/documents/compare` — 다문서 비교
 
 ### `/api/memos`
@@ -55,7 +55,7 @@
 - `GET  /api/memos/search` — `?q=&limit=&project_key=&tag=` (부분일치: title/content/summary/project_key, `tag`·`project_key` 는 정확 일치 필터·`tag` 우선). `memo.searched` (쿼리 **길이**만, 원문 미로그).
 - `GET  /api/memos/[id]` — 단건. 404 시 `memo.read.missing`. 성공 시 `memo.read.detail`.
 - `POST /api/memos/create` — pending 저장 요청 (명시 저장만, 기존과 동일).
-- `POST /api/memos/[id]/summarize` — `summary` 갱신. `lib/summarizers` (Gemini 가능 시) → 실패 시 `rule_based_v1` fallback. env: `SUMMARIZER_PROVIDER=auto|gemini|rule`, `GEMINI_API_KEY`, `GEMINI_MODEL`. body/query `mode`: `regenerate`(기본, **항상 덮어쓰기**) | `if_empty` (이미 있으면 `memo.summarize.skipped`, DB 미변경). 감사: `summarizer.request.received` → (`summarizer.gemini.failed` + `summarizer.fallback.used` 선택) → `memo.summary` 저장 후 `summarizer.provider.resolved` → `memo.summarized`. 저장 실패 시 `memo.summary.persist.failed`.
+- `POST /api/memos/[id]/summarize` — `summary` 갱신. `lib/memos/summarize-memo` → `lib/summarizers/runSummarizerWithFallback`(게이트 → Gemini 또는 rule). body/query `mode`: `regenerate`(기본, **항상 덮어쓰기**) \| `if_empty` (이미 있으면 `memo.summarize.skipped`). 선택 body `resource_kind`: 기본 `memo`. `document`\|`mail` 은 계약 검증 후 400(`resource_kind_not_supported_for_memo_endpoint`). 본문이 정책 길이를 넘으면 400(`content_policy_violation`) + `memo.summarize.policy_blocked`. env: `SUMMARIZER_PROVIDER=auto|gemini|rule`, `GEMINI_API_KEY`, `GEMINI_MODEL`. 감사: `summarizer.request.received`(phase started) → `summarizer.safety.evaluated` → (`summarizer.gemini.failed` + `summarizer.fallback.used` 선택) → 저장 후 `summarizer.provider.resolved`(chunked/chunk_count 등) → `memo.summarized`.
 - `PATCH/DELETE` — 없음
 
 ### `/api/mail`

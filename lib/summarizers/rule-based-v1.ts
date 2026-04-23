@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getSummaryMaxLengthForStore } from "./config";
-import type { Summarizer, SummarizerInput, SummarizerOutput } from "./types";
+import type { SummarizerAdapter, SummarizerInput, SummarizerOutput } from "./types";
 
 const SOFT_CAP = 280;
 
@@ -43,7 +43,7 @@ function clipForStorage(text: string): string {
 /**
  * 키 없이도 항상 동작하는 baseline. 민감정보 full 텍스트는 외부로 보내지 않는다.
  */
-export function createRuleBasedV1Summarizer(): Summarizer {
+export function createRuleBasedV1Summarizer(): SummarizerAdapter {
   return {
     id: "rule_based_v1",
     async summarize(input: SummarizerInput): Promise<SummarizerOutput> {
@@ -54,6 +54,7 @@ export function createRuleBasedV1Summarizer(): Summarizer {
         provider: "rule",
         model: null,
         strategy: "rule_based_v1",
+        chunked: false,
         metadata: { soft_char_cap: SOFT_CAP },
       };
     },

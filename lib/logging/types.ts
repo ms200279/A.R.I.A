@@ -35,8 +35,10 @@ export type AuditEventType =
   | "memo.searched"
   | "memo.read.missing"
   | "memo.summarize.skipped"
+  | "memo.summarize.policy_blocked"
   | "memo.summary.persist.failed"
   | "summarizer.request.received"
+  | "summarizer.safety.evaluated"
   | "summarizer.provider.resolved"
   | "summarizer.gemini.failed"
   | "summarizer.fallback.used"
@@ -49,7 +51,12 @@ export type AuditEventType =
   | "assistant.provider.error"
   | "assistant.proposal.generated"
   | "assistant.save_intent.blocked"
-  | "assistant.pending_action.created";
+  | "assistant.pending_action.created"
+  | "document.summarize.started"
+  | "document.summarize.skipped"
+  | "document.summarize.policy_blocked"
+  | "document.summarized"
+  | "document.summary.persist.failed";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 
