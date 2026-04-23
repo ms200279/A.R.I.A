@@ -5,9 +5,10 @@ import "server-only";
  *
  * 사용자의 자연어 요청을 받아 어떤 도메인 모듈을 호출할지 결정하고 결과를 합성한다.
  *
- * 현재 단계에서는 오케스트레이션을 OpenAI Responses API + function calling 기반의
- * assistant 루프(`lib/assistant`) 가 전담한다. 이 파일은 향후 레거시 인텐트 분류/
- * 룰 기반 라우팅 계층이 추가될 때 상위 진입점이 되도록 얇게 유지된다.
+ * 현재 단계에서는 오케스트레이션을 provider-agnostic assistant 루프(`lib/assistant`)가
+ * 전담한다 (기본 provider 는 Gemini, 대체 provider 로 OpenAI Responses API).
+ * 이 파일은 향후 레거시 인텐트 분류/룰 기반 라우팅 계층이 추가될 때 상위 진입점이
+ * 되도록 얇게 유지된다.
  *
  * 정책 요약:
  *  - 직접 I/O 하지 않는다. 실제 DB/외부 API 접근은 도메인 모듈 또는 assistant tool 경유.

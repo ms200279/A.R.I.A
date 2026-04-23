@@ -418,3 +418,66 @@ export async function logAssistantRunFailed(
     },
   });
 }
+
+export type AssistantPolicyBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  reason: string;
+  matched_pattern?: string | null;
+};
+
+/**
+ * pre-gate 가 사용자 메시지를 정책 위반으로 판정해 LLM 호출 자체를 차단했을 때.
+ * 메시지 원문은 남기지 않는다. 매칭 패턴/카테고리만 남긴다.
+ */
+export async function logAssistantPolicyBlocked(
+  params: AssistantPolicyBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.policy.blocked",
+    result: "failure",
+    module_name: "assistant.policy",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_run",
+    error_code: params.reason,
+    metadata: {
+      session_id: params.session_id ?? null,
+      matched_pattern: params.matched_pattern ?? null,
+    },
+  });
+}
+
+export type AssistantProviderErrorParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  provider: string;
+  error_message?: string | null;
+};
+
+/**
+ * provider 호출이 실패했을 때. error_code 는 항상 "provider_error" 로 통일하고,
+ * provider 식별자는 metadata.provider 에 둔다.
+ */
+export async function logAssistantProviderError(
+  params: AssistantProviderErrorParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.provider.error",
+    result: "failure",
+    module_name: "assistant.provider",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_run",
+    error_code: "provider_error",
+    error_message: params.error_message ?? null,
+    metadata: {
+      session_id: params.session_id ?? null,
+      provider: params.provider,
+    },
+  });
+}

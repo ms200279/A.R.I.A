@@ -32,3 +32,9 @@ export {
   type MemoCreateEvaluation,
   type MemoCreateIntent,
 } from "./memo";
+
+export {
+  evaluateAssistantPreGate,
+  type AssistantPolicyBlockReason,
+  type AssistantPreGateResult,
+} from "./assistant";

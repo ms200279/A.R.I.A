@@ -33,7 +33,9 @@ export type AuditEventType =
   | "assistant.tool.invoked"
   | "assistant.tool.blocked"
   | "assistant.run.completed"
-  | "assistant.run.failed";
+  | "assistant.run.failed"
+  | "assistant.policy.blocked"
+  | "assistant.provider.error";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 
