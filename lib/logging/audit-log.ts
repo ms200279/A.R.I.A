@@ -717,6 +717,524 @@ export async function logMemoSummarizeSkipped(
 // Document helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type DocumentReadSource = "api" | "rsc" | "assistant";
+
+export type DocumentReadStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+};
+
+export async function logDocumentReadStarted(
+  params: DocumentReadStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.started",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentReadDetailParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+  chunk_count: number;
+  has_summary: boolean;
+  summary_id_prefix?: string | null;
+  has_comparison?: boolean;
+  has_analysis?: boolean;
+};
+
+export async function logDocumentReadDetail(
+  params: DocumentReadDetailParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.detail",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      source: params.source,
+      chunk_count: params.chunk_count,
+      has_summary: params.has_summary,
+      summary_id_prefix: params.summary_id_prefix ?? null,
+      has_comparison: params.has_comparison ?? false,
+      has_analysis: params.has_analysis ?? false,
+    },
+  });
+}
+
+export type DocumentReadMissingParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+};
+
+export async function logDocumentReadMissing(
+  params: DocumentReadMissingParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.missing",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: "not_found",
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentReadForbiddenParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+};
+
+export async function logDocumentReadForbidden(
+  params: DocumentReadForbiddenParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.forbidden",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: "forbidden",
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentReadSummaryFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+  error_message?: string | null;
+};
+
+export async function logDocumentReadSummaryFailed(
+  params: DocumentReadSummaryFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.summary_failed",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentListReadStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: DocumentReadSource;
+};
+
+export async function logDocumentListReadStarted(
+  params: DocumentListReadStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.list_started",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "documents",
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentListReadParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: DocumentReadSource;
+  result_count: number;
+  sort: "created_at" | "updated_at";
+  has_cursor: boolean;
+};
+
+export async function logDocumentListRead(params: DocumentListReadParams): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.list",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "documents",
+    metadata: {
+      source: params.source,
+      result_count: params.result_count,
+      sort: params.sort,
+      has_cursor: params.has_cursor,
+    },
+  });
+}
+
+export type DocumentListReadFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: DocumentReadSource;
+  error_code: string;
+  error_message?: string | null;
+};
+
+export async function logDocumentListReadFailed(
+  params: DocumentListReadFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.list_failed",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "documents",
+    error_code: params.error_code,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+    metadata: { source: params.source },
+  });
+}
+
+export type DocumentReadSummariesStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+  type_filter: string;
+  latest: boolean;
+  limit?: number | null;
+};
+
+export async function logDocumentReadSummariesStarted(
+  params: DocumentReadSummariesStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.summaries_started",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      source: params.source,
+      type_filter: params.type_filter,
+      latest: params.latest,
+      limit: params.limit ?? null,
+    },
+  });
+}
+
+export type DocumentReadSummariesParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+  type_filter: string;
+  latest: boolean;
+  item_count: number;
+  has_latest_block: boolean;
+};
+
+export async function logDocumentReadSummaries(
+  params: DocumentReadSummariesParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.summaries",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      source: params.source,
+      type_filter: params.type_filter,
+      latest: params.latest,
+      item_count: params.item_count,
+      has_latest_block: params.has_latest_block,
+    },
+  });
+}
+
+export type DocumentReadSummariesFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  source: DocumentReadSource;
+  error_code: string;
+  error_message?: string | null;
+};
+
+export async function logDocumentReadSummariesFailed(
+  params: DocumentReadSummariesFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.summaries_failed",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.error_code,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+    metadata: { source: params.source },
+  });
+}
+
+// ── document compare / analyze ───────────────────────────────────────────────
+
+export type DocumentCompareStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_ids: string[];
+};
+
+export async function logDocumentCompareStarted(
+  params: DocumentCompareStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.started",
+    result: "success",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_ids[0] ?? null,
+    metadata: {
+      doc_count: params.document_ids.length,
+      id_prefixes: params.document_ids.map((id) => id.slice(0, 8)),
+    },
+  });
+}
+
+export type DocumentCompareCompletedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  primary_document_id: string;
+  compared_document_ids: string[];
+  provider: string;
+  chunked: boolean;
+};
+
+export async function logDocumentCompareCompleted(
+  params: DocumentCompareCompletedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.completed",
+    result: "success",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.primary_document_id,
+    metadata: {
+      compared_count: params.compared_document_ids.length,
+      provider: params.provider,
+      chunked: params.chunked,
+    },
+  });
+}
+
+export async function logDocumentComparePolicyBlocked(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  reason: string;
+  document_ids?: string[];
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.policy_blocked",
+    result: "failure",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    error_code: params.reason,
+    metadata: { id_count: params.document_ids?.length ?? 0 },
+  });
+}
+
+export async function logDocumentCompareFailed(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  reason: string;
+  primary_document_id?: string | null;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.failed",
+    result: "failure",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.primary_document_id ?? null,
+    error_code: params.reason,
+  });
+}
+
+export async function logDocumentCompareHistorySaved(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  comparison_history_id: string;
+  summary_id: string | null;
+  document_count: number;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.history_saved",
+    result: "success",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history",
+    target_id: params.comparison_history_id,
+    metadata: {
+      summary_id: params.summary_id,
+      document_count: params.document_count,
+    },
+  });
+}
+
+export async function logDocumentCompareHistoryFailed(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  reason: string;
+  primary_document_id?: string | null;
+  error_message?: string | null;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.compare.history_failed",
+    result: "failure",
+    module_name: "documents.compare",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.primary_document_id ?? null,
+    error_code: params.reason,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+  });
+}
+
+export type DocumentAnalyzeStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+};
+
+export async function logDocumentAnalyzeStarted(
+  params: DocumentAnalyzeStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.analyze.started",
+    result: "success",
+    module_name: "documents.analyze",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+  });
+}
+
+export type DocumentAnalyzeCompletedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  provider: string;
+  chunked: boolean;
+};
+
+export async function logDocumentAnalyzeCompleted(
+  params: DocumentAnalyzeCompletedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.analyze.completed",
+    result: "success",
+    module_name: "documents.analyze",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: { provider: params.provider, chunked: params.chunked },
+  });
+}
+
+export async function logDocumentAnalyzePolicyBlocked(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  reason: string;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.analyze.policy_blocked",
+    result: "failure",
+    module_name: "documents.analyze",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.reason,
+  });
+}
+
+export async function logDocumentAnalyzeFailed(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  reason: string;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.analyze.failed",
+    result: "failure",
+    module_name: "documents.analyze",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.reason,
+  });
+}
+
 export type DocumentUploadStartedParams = {
   actor_id: string;
   actor_email?: string | null;

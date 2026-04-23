@@ -19,13 +19,27 @@ import {
   resolveSummarizerEnv,
   runSummarizerWithFallback,
 } from "@/lib/summarizers";
-import {
-  prepareDocumentChunkTextForSummarize,
-  prepareDocumentTextForSummarize,
-} from "@/lib/safety/document-text";
-import type { Document, DocumentSummary } from "@/types/document";
+import type {
+  Document,
+  DocumentSummary,
+  DocumentSummaryPipelineStatus,
+} from "@/types/document";
 
 import { DOCUMENT_ROW_SELECT, DOCUMENT_SUMMARY_ROW_SELECT } from "./document-columns";
+import { loadSanitizedDocumentTextForModel } from "./document-model-input";
+
+async function patchDocumentSummaryStatus(
+  service: ReturnType<typeof createServiceClient>,
+  documentId: string,
+  userId: string,
+  summaryStatus: DocumentSummaryPipelineStatus,
+): Promise<void> {
+  await service
+    .from("documents")
+    .update({ summary_status: summaryStatus })
+    .eq("id", documentId)
+    .eq("user_id", userId);
+}
 
 /**
  * 문서 요약 저장 정책
@@ -35,6 +49,9 @@ import { DOCUMENT_ROW_SELECT, DOCUMENT_SUMMARY_ROW_SELECT } from "./document-col
  * - `mode=if_empty`: 이미 요약 본문이 있으면 **실행·저장 생략**, 기존 행 반환.
  * - 입력 텍스트는 `document_chunks`(우선) 또는 `documents.parsed_text` 에서 구성하고,
  *   provider 호출 전 `prepareDocument*ForSummarize` 로 비신뢰 원문을 최소 정규화한다.
+ * - 긴 본문은 `runSummarizerWithFallback` → Gemini 어댑터가 `splitTextIntoSummarizeChunks` 로
+ *   청크 요약 후 합성한다(rule 경로는 단일 패스).
+ * - 실행 중 `documents.summary_status`: 성공 시 `ready`, 실패 시 `failed`, 시작 시 `in_progress`.
  * - 도메인 서비스는 `runSummarizerWithFallback` 만 호출하며 Gemini/rule 구현 세부는 알지 않는다.
  */
 
@@ -48,35 +65,6 @@ export type SummarizeDocumentContext = {
 export type SummarizeDocumentResult =
   | { status: "ok"; summary: DocumentSummary }
   | { status: "error"; reason: string };
-
-type ChunkRow = { chunk_index: number; content: string };
-
-function buildSanitizedDocumentInput(args: {
-  chunks: ChunkRow[] | null;
-  parsedText: string | null;
-}): {
-  text: string;
-  source: "document_chunks" | "parsed_text";
-  chunkRowCount: number | null;
-} {
-  if (args.chunks && args.chunks.length > 0) {
-    const parts = args.chunks
-      .slice()
-      .sort((a, b) => a.chunk_index - b.chunk_index)
-      .map((c) => prepareDocumentChunkTextForSummarize(c.content))
-      .filter((p) => p.length > 0);
-    return {
-      text: parts.join("\n\n"),
-      source: "document_chunks",
-      chunkRowCount: args.chunks.length,
-    };
-  }
-  return {
-    text: prepareDocumentTextForSummarize(args.parsedText ?? ""),
-    source: "parsed_text",
-    chunkRowCount: null,
-  };
-}
 
 export async function summarizeDocument(
   documentId: string,
@@ -99,6 +87,10 @@ export async function summarizeDocument(
 
   const row = doc as Document;
 
+  if (row.user_id !== ctx.user_id) {
+    return { status: "error", reason: "forbidden" };
+  }
+
   if (mode === "if_empty") {
     const { data: existing } = await supabase
       .from("document_summaries")
@@ -117,31 +109,26 @@ export async function summarizeDocument(
     }
   }
 
-  const { data: chunkRows, error: chunkErr } = await supabase
-    .from("document_chunks")
-    .select("chunk_index,content")
-    .eq("document_id", documentId)
-    .order("chunk_index", { ascending: true });
-
-  if (chunkErr) {
-    return { status: "error", reason: "document_chunks_load_failed" };
-  }
-
-  const { text: sanitizedInput, source: inputSource, chunkRowCount } =
-    buildSanitizedDocumentInput({
-      chunks: (chunkRows as ChunkRow[] | null) ?? null,
-      parsedText: row.parsed_text,
-    });
-
-  if (!sanitizedInput.trim()) {
+  const loaded = await loadSanitizedDocumentTextForModel(supabase, documentId);
+  if (!loaded.ok) {
+    if (loaded.reason === "document_not_found") {
+      return { status: "error", reason: "document_not_found" };
+    }
+    if (loaded.reason === "document_chunks_load_failed") {
+      return { status: "error", reason: "document_chunks_load_failed" };
+    }
     await logDocumentSummarizePolicyBlocked({
       actor_id: ctx.user_id,
       actor_email: ctx.user_email ?? null,
       document_id: documentId,
-      policy_reason: "empty_document",
+      policy_reason: loaded.reason,
     });
-    return { status: "error", reason: "document_empty" };
+    return { status: "error", reason: loaded.reason };
   }
+
+  const sanitizedInput = loaded.text;
+  const inputSource = loaded.source;
+  const chunkRowCount = loaded.chunk_row_count;
 
   const contentPolicy = evaluateSummarizerContentPolicy({
     resourceKind: "document",
@@ -166,6 +153,9 @@ export async function summarizeDocument(
     chunk_row_count: chunkRowCount,
     sanitized_content_length: sanitizedInput.length,
   });
+
+  const service = createServiceClient();
+  await patchDocumentSummaryStatus(service, documentId, ctx.user_id, "in_progress");
 
   const env = resolveSummarizerEnv();
   const intendedLabel = intendedProviderLabel(env);
@@ -229,6 +219,7 @@ export async function summarizeDocument(
 
   const summaryText = (output.summary ?? "").trim();
   if (!summaryText) {
+    await patchDocumentSummaryStatus(service, documentId, ctx.user_id, "failed");
     return { status: "error", reason: "summary_empty" };
   }
 
@@ -242,7 +233,6 @@ export async function summarizeDocument(
     provider: output.provider,
   };
 
-  const service = createServiceClient();
   const { data: upserted, error: upsertErr } = await service
     .from("document_summaries")
     .upsert(
@@ -265,8 +255,11 @@ export async function summarizeDocument(
       document_id: documentId,
       error_message: upsertErr?.message ?? "unknown",
     });
+    await patchDocumentSummaryStatus(service, documentId, ctx.user_id, "failed");
     return { status: "error", reason: "summary_persist_failed" };
   }
+
+  await patchDocumentSummaryStatus(service, documentId, ctx.user_id, "ready");
 
   await logSummarizerProviderResolved({
     actor_id: ctx.user_id,

@@ -22,9 +22,8 @@ type Props = {
  *   중앙: 섹션 메뉴
  *   하단: 사용자 이메일 + 로그아웃
  *
- * 현재 구현되어 있지 않은 섹션(Documents, Calendar, Mail, Approvals, Settings)은
- * `disabled` 플래그로 톤을 낮춰 노출한다. 사이드바 IA 를 유지하되,
- * 실제로 클릭하면 존재하지 않는 경로로 이동하는 일이 없도록 href 는 `/` 로 둔다.
+ * 아직 없는 섹션(Calendar, Mail, Approvals, Settings)은 `disabled` 로 두고
+ * Documents·Memos 는 실제 경로로 연결한다.
  */
 export default function AppSidebar({
   userEmail,
@@ -116,9 +115,9 @@ export default function AppSidebar({
           label="Memos"
           icon={<IconNote />}
         />
+        <SidebarLink href="/documents" label="Documents" icon={<IconDoc />} />
 
         <SectionLabel className="mt-6">Connected (soon)</SectionLabel>
-        <SidebarLink href="/" disabled label="Documents" icon={<IconDoc />} />
         <SidebarLink href="/" disabled label="Calendar" icon={<IconCal />} />
         <SidebarLink href="/" disabled label="Mail" icon={<IconMail />} />
         <SidebarLink
