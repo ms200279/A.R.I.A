@@ -281,3 +281,140 @@ export async function logMemoSummarized(
     metadata: { strategy: params.strategy },
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assistant helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AssistantRequestReceivedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  message_length: number;
+};
+
+export async function logAssistantRequestReceived(
+  params: AssistantRequestReceivedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.request.received",
+    result: "success",
+    module_name: "assistant.query",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_run",
+    metadata: {
+      session_id: params.session_id ?? null,
+      message_length: params.message_length,
+    },
+  });
+}
+
+export type AssistantToolInvokedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  tool_name: string;
+  tier: string;
+  session_id?: string | null;
+};
+
+export async function logAssistantToolInvoked(
+  params: AssistantToolInvokedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.tool.invoked",
+    result: "success",
+    module_name: "assistant.tool",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_tool",
+    target_id: params.tool_name,
+    metadata: {
+      tier: params.tier,
+      session_id: params.session_id ?? null,
+    },
+  });
+}
+
+export type AssistantToolBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  tool_name: string;
+  reason: string;
+};
+
+export async function logAssistantToolBlocked(
+  params: AssistantToolBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.tool.blocked",
+    result: "failure",
+    module_name: "assistant.tool",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_tool",
+    target_id: params.tool_name,
+    error_code: params.reason,
+  });
+}
+
+export type AssistantRunCompletedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  answer_kind: string;
+  iterations: number;
+  pending_action_count: number;
+  tool_call_count: number;
+};
+
+export async function logAssistantRunCompleted(
+  params: AssistantRunCompletedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.run.completed",
+    result: "success",
+    module_name: "assistant.run",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_run",
+    metadata: {
+      session_id: params.session_id ?? null,
+      answer_kind: params.answer_kind,
+      iterations: params.iterations,
+      pending_action_count: params.pending_action_count,
+      tool_call_count: params.tool_call_count,
+    },
+  });
+}
+
+export type AssistantRunFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  error_code: string;
+  error_message?: string | null;
+};
+
+export async function logAssistantRunFailed(
+  params: AssistantRunFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.run.failed",
+    result: "failure",
+    module_name: "assistant.run",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_run",
+    error_code: params.error_code,
+    error_message: params.error_message ?? null,
+    metadata: {
+      session_id: params.session_id ?? null,
+    },
+  });
+}

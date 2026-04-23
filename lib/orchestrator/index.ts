@@ -5,29 +5,32 @@ import "server-only";
  *
  * 사용자의 자연어 요청을 받아 어떤 도메인 모듈을 호출할지 결정하고 결과를 합성한다.
  *
- * 제약:
- *  - 직접 I/O 하지 않는다. 모든 DB/외부 API 접근은 도메인 모듈 또는 `lib/integrations` 에 맡긴다.
- *  - 실행 계열 액션은 직접 실행하지 않고 `pending_actions` 를 만들어 승인 플로우로 돌린다.
+ * 현재 단계에서는 오케스트레이션을 OpenAI Responses API + function calling 기반의
+ * assistant 루프(`lib/assistant`) 가 전담한다. 이 파일은 향후 레거시 인텐트 분류/
+ * 룰 기반 라우팅 계층이 추가될 때 상위 진입점이 되도록 얇게 유지된다.
+ *
+ * 정책 요약:
+ *  - 직접 I/O 하지 않는다. 실제 DB/외부 API 접근은 도메인 모듈 또는 assistant tool 경유.
+ *  - 실행 계열 액션은 직접 실행하지 않고 pending_actions 를 만들어 승인 플로우로 돌린다.
  *  - 외부 입력은 `lib/safety.prepareUntrusted` 통과 후만 LLM 에 전달.
  */
 
+export {
+  runAssistant,
+  type RunAssistantInput,
+  type RunAssistantOutput,
+} from "@/lib/assistant";
+
+/**
+ * Legacy API shape — 초안 단계에서 정의했던 단순 응답 타입.
+ * 호환을 위해 남겨두되, 새 코드는 `RunAssistantOutput.data.answer` 를 직접 쓴다.
+ */
 export type AssistantRequest = {
   userId: string;
   message: string;
-  /** 현재 세션 id (장기 메모와 절대 섞이지 않는다) */
   sessionId: string;
 };
 
 export type AssistantResponse =
   | { kind: "text"; text: string }
   | { kind: "proposal"; pendingActionId: string; summary: string };
-
-export async function handle(_request: AssistantRequest): Promise<AssistantResponse> {
-  // TODO:
-  //  1) 세션/소유자 검증 (server client)
-  //  2) 인텐트 분류 (LLM 또는 규칙)
-  //  3) 도메인 모듈 호출 (documents/mail/calendar/memos)
-  //  4) 쓰기 필요 시 pending_actions 생성 후 { kind: "proposal" } 반환
-  //  5) 그 외엔 { kind: "text" } 로 반환
-  throw new Error("not_implemented: lib/orchestrator.handle");
-}
