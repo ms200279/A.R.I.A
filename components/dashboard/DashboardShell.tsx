@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { startTransition, useEffect, useState } from "react";
 
 import AppSidebar from "./AppSidebar";
+
+const SIDEBAR_COLLAPSED_KEY = "aria-dashboard-sidebar-collapsed";
 
 type Props = {
   userEmail: string | null;
@@ -13,41 +17,80 @@ type Props = {
  * 전체 대시보드 shell.
  *
  * 데스크톱 (>=1024px):
- *   grid-cols-[260px_1fr] 고정. 사이드바는 항상 보인다.
+ *   기본 260px 고정 사이드바. 헤더의 「접기」로 숨기고, 메인 상단의 버튼으로 다시 연다.
+ *   접힘 상태는 localStorage 에 저장한다.
  *
  * 모바일 (<1024px):
- *   사이드바는 overlay drawer 로 접힌다. 상단 작은 바에 햄버거 버튼.
- *   경로가 바뀌면 drawer 를 자동으로 닫아 이동감이 깔끔해진다.
+ *   상단 바의 햄버거로 drawer. 배경 탭·닫기 버튼·로고 링크 이동 시 닫힌다.
  */
 export default function DashboardShell({ userEmail, children }: Props) {
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [sidebarHydrated, setSidebarHydrated] = useState(false);
 
-  // drawer 열렸을 때 body 스크롤 잠금.
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (v === "1") {
+        startTransition(() => setDesktopCollapsed(true));
+      }
+    } catch {
+      /* ignore */
+    }
+    startTransition(() => setSidebarHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarHydrated) return;
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, desktopCollapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [desktopCollapsed, sidebarHydrated]);
+
+  useEffect(() => {
+    startTransition(() => setMobileOpen(false));
+  }, [pathname]);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     const prev = document.body.style.overflow;
-    document.body.style.overflow = open ? "hidden" : prev;
+    document.body.style.overflow = mobileOpen ? "hidden" : prev;
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [mobileOpen]);
 
   return (
     <div className="min-h-dvh bg-[var(--bg-base)] text-[var(--text-primary)]">
-      <div className="lg:grid lg:h-dvh lg:grid-cols-[260px_1fr]">
+      <div
+        className={
+          desktopCollapsed
+            ? "lg:grid lg:h-dvh lg:grid-cols-1"
+            : "lg:grid lg:h-dvh lg:grid-cols-[260px_1fr]"
+        }
+      >
         {/* 데스크톱 고정 사이드바 */}
-        <div className="hidden lg:block lg:h-dvh">
-          <AppSidebar userEmail={userEmail} />
+        <div
+          className={`hidden h-dvh lg:block ${desktopCollapsed ? "lg:hidden" : ""}`}
+        >
+          <AppSidebar
+            userEmail={userEmail}
+            variant="static"
+            onCollapseDesktop={() => setDesktopCollapsed(true)}
+          />
         </div>
 
         {/* 모바일 상단 바 */}
         <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 lg:hidden">
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setMobileOpen(true)}
             className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="메뉴 열기"
-            aria-expanded={open}
+            aria-expanded={mobileOpen}
             aria-controls="app-sidebar-drawer"
           >
             <svg
@@ -64,38 +107,76 @@ export default function DashboardShell({ userEmail, children }: Props) {
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="text-sm font-semibold tracking-[0.18em] text-[var(--text-primary)]">
+          <Link
+            href="/"
+            className="text-sm font-semibold tracking-[0.18em] text-[var(--text-primary)] outline-none ring-[var(--accent)] focus-visible:rounded-sm focus-visible:ring-2"
+          >
             A.R.I.A
-          </div>
+          </Link>
           <div className="w-7" />
         </div>
 
         {/* 모바일 drawer */}
-        {open ? (
+        {mobileOpen ? (
           <>
             <button
               type="button"
               aria-label="메뉴 닫기"
-              onClick={() => setOpen(false)}
+              onClick={() => setMobileOpen(false)}
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
             />
             <div
               id="app-sidebar-drawer"
-              className="aria-drawer-in fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] lg:hidden"
               onClickCapture={(e) => {
-                // drawer 내부의 Link 클릭 시 drawer 를 닫아 자연스러운 네비게이션감을 만든다.
                 const target = e.target as HTMLElement;
-                if (target.closest("a")) setOpen(false);
+                if (target.closest("a")) setMobileOpen(false);
               }}
             >
-              <AppSidebar userEmail={userEmail} />
+              <AppSidebar
+                userEmail={userEmail}
+                variant="drawer"
+                onCloseDrawer={() => setMobileOpen(false)}
+              />
             </div>
           </>
         ) : null}
 
         {/* 메인 영역 */}
-        <main className="h-[calc(100dvh-49px)] lg:h-dvh">
-          {children}
+        <main className="flex h-[calc(100dvh-49px)] min-h-0 flex-col lg:h-dvh">
+          {desktopCollapsed ? (
+            <div className="hidden shrink-0 items-center gap-2 border-b border-white/5 px-3 py-2.5 lg:flex">
+              <button
+                type="button"
+                onClick={() => setDesktopCollapsed(false)}
+                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                aria-label="메뉴 열기"
+                aria-expanded={false}
+                aria-controls="app-sidebar-desktop"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <Link
+                href="/"
+                className="text-sm font-semibold tracking-[0.18em] text-[var(--text-primary)] outline-none ring-[var(--accent)] focus-visible:rounded-sm focus-visible:ring-2"
+              >
+                A.R.I.A
+              </Link>
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-auto">{children}</div>
         </main>
       </div>
     </div>

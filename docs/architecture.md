@@ -18,7 +18,7 @@
 │    safety/        ← 비신뢰 입력 전처리, PII, 인젝션 완화│
 │    policies/      ← 승인 판단, 액션 분류               │
 │    logging/       ← 감사 / 정책 위반 / 실행 로그       │
-│    documents/     ← 문서 도메인                        │
+│    documents/     ← 문서 도메인(요약: summarize-document → summarizers) │
 │    memos/         ← 메모 도메인                        │
 │    mail/          ← 메일 도메인 (읽기 중심)            │
 │    calendar/      ← 캘린더 도메인                      │
@@ -40,8 +40,9 @@
 - **policies**: 액션 등급을 판정하고, 승인 필요 여부를 돌려준다. 실제 승인 UI는 app에서 담당.
 - **logging**: 감사 로그, 정책 위반 로그, 실행 로그. 원문 대신 포인터/요약 저장.
 - **documents/memos/mail/calendar**: 도메인 로직. Supabase / integrations 를 통해 I/O.
+- **documents.summarize**: `document_chunks`·`parsed_text` 로 입력을 구성하고 비신뢰 전처리 후 `runSummarizerWithFallback`( `ResourceKind.document` )로 요약; `document_summaries` 에 UPSERT.
 - **integrations**: 외부 API 어댑터. 토큰 관리, 레이트 리밋, 에러 매핑.
-- **summarizers**: 메모·향후 문서 등에 공통으로 쓰는 요약 계약(`SummarizerInput`/`Output`). Gemini LLM 또는 `rule_based_v1`, 환경 변수 `SUMMARIZER_PROVIDER` 로 선택. 실패 시 서버 측에서 rule 로만 복구.
+- **summarizers**: `ResourceKind`(memo \| document \| mail) 기반 공통 계약(`SummarizerInput`/`SummarizerOutput`, `SummarizerAdapter`). `runSummarizerWithFallback` 가 `lib/safety/summarize-provider-gate` 로 외부 LLM 호출 전 게이트를 통과시킨 뒤, `SUMMARIZER_PROVIDER`·키에 따라 Gemini 또는 `rule_based_v1` 을 선택한다. 긴 본문은 `MAX_USER_CONTENT_CHARS` 기준으로 청크 요약 후 합성(Gemini 경로). Gemini 실패 시 rule 로 복구.
 - **supabase**: 서버/클라이언트/서비스 역할용 클라이언트 분리.
 
 ## 런타임 흐름 (예: 문서 요약)

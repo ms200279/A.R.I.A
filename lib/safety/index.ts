@@ -52,3 +52,13 @@ export {
   type SensitivityCategory,
   type SensitivityMatch,
 } from "./sensitive";
+
+export {
+  evaluateSummarizerProviderGate,
+  type SummarizeProviderGateResult,
+} from "./summarize-provider-gate";
+
+export {
+  prepareDocumentTextForSummarize,
+  prepareDocumentChunkTextForSummarize,
+} from "./document-text";

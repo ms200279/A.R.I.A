@@ -3,14 +3,16 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
-  logMemoSummarizeSkipped,
+  logMemoSummarizePolicyBlocked,
   logMemoSummarized,
   logMemoSummaryPersistFailed,
+  logMemoSummarizeSkipped,
   logSummarizerFallbackUsed,
   logSummarizerGeminiFailed,
   logSummarizerProviderResolved,
   logSummarizerRequestReceived,
 } from "@/lib/logging/audit-log";
+import { evaluateSummarizerContentPolicy } from "@/lib/policies/summarize-content";
 import {
   intendedProviderLabel,
   resolveSummarizerEnv,
@@ -25,8 +27,7 @@ import { MEMO_ROW_SELECT } from "./memo-columns";
  * -----------------
  * - `mode=regenerate` (기본): 항상 요약기를 호출해 **summary 를 덮어쓴다**. (UI 「다시 요약」과 동일)
  * - `mode=if_empty`: DB 의 `summary` 가 비어 있을 때만 생성. 이미 값이 있으면 **DB 쓰기 없음**.
- * - 실제 문장 생성은 `lib/summarizers` 의 provider-agnostic 어댑터가 담당하며,
- *   Gemini 실패 시 자동으로 rule_based_v1 로 fallback 한다.
+ * - 문장 생성은 `lib/summarizers` 의 `runSummarizerWithFallback`(게이트 + rule/Gemini)이 담당한다.
  */
 
 export type SummarizeMode = "regenerate" | "if_empty";
@@ -76,26 +77,46 @@ export async function summarizeMemo(
     return { status: "ok", memo: current };
   }
 
+  const contentPolicy = evaluateSummarizerContentPolicy({
+    resourceKind: "memo",
+    content: current.content ?? "",
+  });
+  if (!contentPolicy.ok) {
+    await logMemoSummarizePolicyBlocked({
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      memo_id: memoId,
+      policy_reason: contentPolicy.reason,
+    });
+    return { status: "error", reason: "content_policy_violation" };
+  }
+
   const env = resolveSummarizerEnv();
   const intendedLabel = intendedProviderLabel(env);
+  const regenerate = mode === "regenerate";
 
   await logSummarizerRequestReceived({
     actor_id: ctx.user_id,
     actor_email: ctx.user_email ?? null,
     resource_id: memoId,
+    resource_kind: "memo",
     content_length: (current.content ?? "").length,
     title_present: Boolean((current.title ?? "").trim()),
     intended_provider: intendedLabel,
+    regenerate,
   });
 
-  const { output, geminiError, attemptedPrimary } = await runSummarizerWithFallback({
-    userId: ctx.user_id,
-    resourceId: memoId,
-    title: current.title,
-    content: current.content,
-    existingSummary: current.summary,
-    mode: "regenerate",
-  });
+  const { output, geminiError, attemptedPrimary, safetySkippedProvider } =
+    await runSummarizerWithFallback({
+      userId: ctx.user_id,
+      resourceKind: "memo",
+      resourceId: memoId,
+      title: current.title,
+      content: current.content,
+      existingSummary: current.summary,
+      regenerate,
+      mode,
+    });
 
   if (geminiError) {
     await logSummarizerGeminiFailed({
@@ -138,9 +159,16 @@ export async function summarizeMemo(
     actor_id: ctx.user_id,
     actor_email: ctx.user_email ?? null,
     resource_id: memoId,
+    resource_kind: "memo",
     provider: output.provider,
     model: output.model,
     strategy: output.strategy,
+    chunked: output.chunked,
+    chunk_count: output.chunkCount ?? null,
+    safety_skipped_provider: safetySkippedProvider,
+    extra_metadata: {
+      attempted_primary: attemptedPrimary,
+    },
   });
 
   const meta: Record<string, unknown> = {
@@ -148,7 +176,9 @@ export async function summarizeMemo(
     model: output.model,
     strategy: output.strategy,
     attempted_primary: attemptedPrimary,
-    input_truncated: output.metadata?.input_truncated,
+    safety_skipped_provider: safetySkippedProvider,
+    chunked: output.chunked,
+    chunk_count: output.chunkCount ?? null,
   };
   if (output.usage) {
     meta.input_tokens = output.usage.input_tokens;
