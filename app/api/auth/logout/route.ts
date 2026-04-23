@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logLogoutFailure, logLogoutSuccess } from "@/lib/logging";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -13,17 +14,33 @@ import { createClient } from "@/lib/supabase/server";
  *   전송되지 않는다. 로그아웃은 멱등/저위험 액션이므로 별도 토큰을 요구하지 않는다.
  * - 이 엔드포인트는 "민감 액션 승인 플로우"의 대상이 아니다. 사용자가 의도적으로 자신의
  *   세션을 종료하는 것이기 때문이다.
+ *
+ * 감사 로깅:
+ * - signOut 전에 actor 식별 정보를 먼저 확보한다. signOut 후에는 user 조회가 비어있다.
+ * - 로깅 실패는 내부에서 흡수되므로 응답 흐름에 영향을 주지 않는다.
  */
 export async function POST() {
   const supabase = await createClient();
+
+  const { data: userData } = await supabase.auth.getUser();
+  const actor_id = userData.user?.id ?? null;
+  const actor_email = userData.user?.email ?? null;
+
   const { error } = await supabase.auth.signOut();
 
   if (error) {
+    await logLogoutFailure({
+      actor_id,
+      actor_email,
+      error_message: error.message,
+    });
     return NextResponse.json(
       { ok: false, error: error.message },
       { status: 500 },
     );
   }
+
+  await logLogoutSuccess({ actor_id, actor_email });
 
   return NextResponse.json({ ok: true });
 }
