@@ -74,9 +74,9 @@ export async function executeTool(
 
   switch (name) {
     case "search_memos":
-      return runSearchMemos(rawArgs);
+      return runSearchMemos(rawArgs, ctx);
     case "get_recent_memos":
-      return runGetRecentMemos(rawArgs);
+      return runGetRecentMemos(rawArgs, ctx);
     case "get_weather":
       return runGetWeather(rawArgs);
     case "search_web":
@@ -100,7 +100,10 @@ function isKnownTool(name: string): name is ToolName {
 // read tools
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function runSearchMemos(raw: unknown): Promise<ToolResult> {
+async function runSearchMemos(
+  raw: unknown,
+  ctx: AssistantRunContext,
+): Promise<ToolResult> {
   const parsed = SearchMemosArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "search_memos", reason: "invalid_arguments" };
@@ -108,6 +111,11 @@ async function runSearchMemos(raw: unknown): Promise<ToolResult> {
   const result = await searchMemos({
     query: parsed.data.query,
     limit: parsed.data.limit,
+    audit: {
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      source: "assistant",
+    },
   });
   return {
     kind: "data",
@@ -120,7 +128,10 @@ async function runSearchMemos(raw: unknown): Promise<ToolResult> {
   };
 }
 
-async function runGetRecentMemos(raw: unknown): Promise<ToolResult> {
+async function runGetRecentMemos(
+  raw: unknown,
+  ctx: AssistantRunContext,
+): Promise<ToolResult> {
   const parsed = GetRecentMemosArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "get_recent_memos", reason: "invalid_arguments" };
@@ -128,6 +139,12 @@ async function runGetRecentMemos(raw: unknown): Promise<ToolResult> {
   const result = await listMemos({
     limit: parsed.data.limit,
     project_key: parsed.data.project_key ?? null,
+    sort: parsed.data.sort,
+    audit: {
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      source: "assistant",
+    },
   });
   return {
     kind: "data",
