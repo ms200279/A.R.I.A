@@ -30,4 +30,19 @@ alwaysApply: true
 - `.env` 실제 값 커밋 금지. `.env.example` 템플릿만 허용.
 
 ## 커밋/브랜치
+- **`main` 에 직접 커밋/푸시 금지.** 모든 작업은 새 브랜치에서 시작한다.
+- 브랜치 네이밍 컨벤션 (권장):
+  - `feat/<도메인>-<짧은-설명>` — 새 기능
+  - `fix/<짧은-설명>` — 버그 수정
+  - `chore/<짧은-설명>` — 설정, 스캐폴드, 문서 등 기능 외 변경
+  - `docs/<짧은-설명>` — 문서 전용
+  - `refactor/<짧은-설명>` — 행동 변화 없는 구조 변경
+- 작업 흐름:
+  1. `git checkout main && git pull`
+  2. `git checkout -b <type>/<slug>`
+  3. 커밋은 작고 의미 단위로, 메시지는 영문 Conventional Commits 권장 (`feat:`, `fix:`, `chore:`, `docs:` …)
+  4. `git push -u origin <branch>` 로 업스트림 설정
+  5. GitHub PR 생성 → 리뷰/셀프 체크 → merge (squash 권장)
+  6. merge 후 로컬 브랜치 삭제
 - 파괴적 변경(스키마 drop, 데이터 마이그레이션)은 별도 PR로 분리하고 문서에 위험 표시를 남긴다.
+- 한 PR = 한 주제. 무관한 변경을 섞지 않는다.
