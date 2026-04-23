@@ -1,21 +1,55 @@
 import { NextResponse } from "next/server";
 
+import { createClient } from "@/lib/supabase/server";
+import { rejectMemoAction } from "@/lib/memos";
+
+export const dynamic = "force-dynamic";
+
 type Params = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/approvals/:id/reject
- * 승인 대기 액션을 사용자가 거절한다. 외부 시스템 호출은 일어나지 않는다.
- *
- * 필수 흐름 (구현 시):
- *  1) 세션 확인, 소유자 검증
- *  2) `pending_actions.status = rejected`
- *  3) `lib/logging` 으로 감사 로그 (action=reject)
+ * 승인 대기 중인 액션을 사용자가 거절.
  */
 export async function POST(_request: Request, { params }: Params) {
-  const { id: _id } = await params;
-  // TODO: 위 1~3 단계 구현
-  return NextResponse.json(
-    { error: "not_implemented", message: "approval reject is not implemented yet" },
-    { status: 501 },
-  );
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData.user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { data: pending, error: pendingErr } = await supabase
+    .from("pending_actions")
+    .select("id, action_type, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (pendingErr || !pending) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (pending.status !== "awaiting_approval") {
+    return NextResponse.json(
+      { error: "invalid_status", status: pending.status },
+      { status: 409 },
+    );
+  }
+
+  switch (pending.action_type) {
+    case "save_memo": {
+      const result = await rejectMemoAction(id, {
+        user_id: userData.user.id,
+        user_email: userData.user.email ?? null,
+      });
+      if (result.status === "error") {
+        return NextResponse.json({ error: result.reason }, { status: 500 });
+      }
+      return NextResponse.json(result, { status: 200 });
+    }
+    default:
+      return NextResponse.json(
+        { error: "unsupported_action_type", action_type: pending.action_type },
+        { status: 400 },
+      );
+  }
 }

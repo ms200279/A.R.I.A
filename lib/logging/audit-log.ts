@@ -131,3 +131,153 @@ export async function logLogoutFailure(
     metadata: params.metadata ?? null,
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Memo helpers
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// 메모 도메인의 주요 상태 전이(요청/차단/승인대기/실행/거절/요약)에 대응한다.
+// 민감 원문은 절대 넘기지 않는다. 필요한 지표는 sensitivity_flag / category 수준.
+//
+
+export type MemoCreateRequestedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export async function logMemoCreateRequested(
+  params: MemoCreateRequestedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.create.requested",
+    result: "success",
+    module_name: "memos.create",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    metadata: params.metadata ?? null,
+  });
+}
+
+export type MemoCreateBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  reason: string;
+  metadata?: Record<string, unknown>;
+};
+
+export async function logMemoCreateBlocked(
+  params: MemoCreateBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.create.blocked",
+    result: "failure",
+    module_name: "memos.create",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    error_code: params.reason,
+    metadata: params.metadata ?? null,
+  });
+}
+
+export type MemoCreatePendingParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+  sensitivity_flag: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+export async function logMemoCreatePending(
+  params: MemoCreatePendingParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.create.pending",
+    result: "success",
+    module_name: "memos.create",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "pending_action",
+    target_id: params.pending_action_id,
+    metadata: {
+      sensitivity_flag: params.sensitivity_flag,
+      ...params.metadata,
+    },
+  });
+}
+
+export type MemoApprovalExecutedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+  memo_id: string;
+  sensitivity_flag: boolean;
+};
+
+export async function logMemoApprovalExecuted(
+  params: MemoApprovalExecutedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.approval.executed",
+    result: "success",
+    module_name: "memos.approval",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    metadata: {
+      pending_action_id: params.pending_action_id,
+      sensitivity_flag: params.sensitivity_flag,
+    },
+  });
+}
+
+export type MemoApprovalRejectedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+};
+
+export async function logMemoApprovalRejected(
+  params: MemoApprovalRejectedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.approval.rejected",
+    result: "success",
+    module_name: "memos.approval",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "pending_action",
+    target_id: params.pending_action_id,
+  });
+}
+
+export type MemoSummarizedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  memo_id: string;
+  strategy: string;
+};
+
+export async function logMemoSummarized(
+  params: MemoSummarizedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.summarized",
+    result: "success",
+    module_name: "memos.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    metadata: { strategy: params.strategy },
+  });
+}
