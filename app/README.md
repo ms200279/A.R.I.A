@@ -7,6 +7,7 @@ Next.js App Router 루트.
 - 외부 API 직접 호출 금지 → `lib/integrations/*` 경유.
 
 ## 서브디렉토리
+
 - `(auth)/` — 로그인/세션 관련 UI.
 - `(dashboard)/` — 보호된 메인 UI (채팅, 문서, 메모, 캘린더 등).
 - `api/` — Route Handlers. 도메인별 하위 디렉토리.

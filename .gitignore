@@ -29,3 +29,8 @@ supabase/.branches/
 coverage/
 .turbo/
 .cache/
+
+# TS / Next generated
+next-env.d.ts
+*.tsbuildinfo
+
