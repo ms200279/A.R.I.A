@@ -10,6 +10,12 @@ export type AssistantRunContext = {
   user_email?: string | null;
   /** 클라이언트가 보낸 세션 id. 아직 영속 sessions 테이블은 없고 로깅 용도로만 사용. */
   session_id?: string | null;
+  /**
+   * 현재 턴의 사용자 원문 메시지.
+   * 쓰기 성격 도구(create_pending_action_for_memo)가 실행 전에 명시적 저장 의도를
+   * 서버 측에서 재검증할 때 사용한다. 로깅/외부 응답에는 실리지 않는다.
+   */
+  user_message?: string;
 };
 
 export type AssistantAnswerKind =

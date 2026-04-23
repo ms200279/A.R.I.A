@@ -30,7 +30,14 @@
   - `AssistantAnswer.kind` ∈ `direct_answer | clarification_question | proposed_action | approval_required | blocked`.
   - HTTP 상태는 auth(401) / body 검증(400) 에서만 비-200. provider/도구/정책 오류는 **항상 200 + `answer.kind=blocked`** 으로 정규화(graceful failure).
   - **Pre-gate 정책**: 메일 발송/삭제/공유/웹 자동화 같은 명령형 금지 요청은 LLM 호출 없이 즉시 `blocked` 응답과 `assistant.policy.blocked` 감사 로그가 남는다.
-  - 쓰기 계열 tool (현재는 `propose_save_memo`) 은 이번 단계에서 **pending_action 을 만들지 않는다**. proposal 미리보기만 반환하고, 실제 저장은 사용자가 `/memos` UI 에서 명시적으로 수행한다.
+  - 쓰기 계열은 **2 단계 write-safe proposal** 구조로만 수행된다. 모델이 `memos` 테이블에 직접 INSERT 하는 경로는 어느 경우에도 없다.
+    1. `propose_save_memo` — **미리보기 only**. DB 에 쓰지 않고 저장 예정 본문/제목/`sensitivity_flag` 만 구조화해 반환한다. `assistant.proposal.generated` 감사 로그.
+    2. `create_pending_action_for_memo` — `pending_actions` 에 `action_type=save_memo, status=awaiting_approval` 로 INSERT. 호출 직전 서버에서 `evaluateSaveMemoIntent(user_message)` 로 현재 턴이 명시적 저장/동의 의도인지 재검증한다. 의도가 불명확하면 INSERT 전에 `assistant.save_intent.blocked` 로그와 함께 차단되고, 모델은 `create_pending_action_for_memo` 가 `blocked` 반환을 받는다. 실제 `memos` 저장은 여전히 `/api/approvals/[id]/confirm` 만 담당한다.
+  - 응답 유형 매핑:
+    - pending_action 이 만들어졌으면 → `approval_required` + `pending_action_ids`.
+    - `propose_save_memo` 만 호출되고 pending 이 없으면 → `proposed_action` (Stage 1 의 저장 확인 질문).
+    - 도구가 `blocked` 반환하면 → `blocked`.
+    - 그 외 텍스트 기반 판정으로 `clarification_question` / `direct_answer`.
   - 연결된 read-first 도구: `get_recent_memos`, `search_memos`, `get_weather` (adapter 미설정 시 `not_configured`), `search_web` (adapter 미설정 시 `not_configured`).
   - 모델은 절대 브라우저에서 호출하지 않는다. 모든 호출은 Route Handler → `lib/assistant.runAssistant` → `lib/assistant/providers` 경유.
 

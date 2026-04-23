@@ -1,12 +1,20 @@
 import "server-only";
 
-import { listMemos, searchMemos } from "@/lib/memos";
-import { logAssistantToolBlocked, logAssistantToolInvoked } from "@/lib/logging/audit-log";
+import { createMemoDraft, listMemos, searchMemos } from "@/lib/memos";
+import {
+  logAssistantPendingActionCreated,
+  logAssistantProposalGenerated,
+  logAssistantSaveIntentBlocked,
+  logAssistantToolBlocked,
+  logAssistantToolInvoked,
+} from "@/lib/logging/audit-log";
+import { evaluateSaveMemoIntent } from "@/lib/policies/assistant";
 import { detectSensitiveContent } from "@/lib/safety";
 
 import { getWeatherAdapter } from "./adapters/weather";
 import { getWebSearchAdapter } from "./adapters/web-search";
 import {
+  CreatePendingActionForMemoArgs,
   GetRecentMemosArgs,
   GetWeatherArgs,
   ProposeSaveMemoArgs,
@@ -25,7 +33,9 @@ import type { AssistantRunContext, ToolResult } from "./types";
  *  - Zod 로 인자 검증. 실패 시 error 반환.
  *  - 티어(read/proposal/restricted) 에 따른 실행 분기.
  *  - 모든 호출을 감사 로그에 기록.
- *  - DB write 는 직접 하지 않는다. 쓰기 계열은 pending_action 생성까지만 가는 `propose_save_memo` 뿐이다.
+ *  - DB write 는 memos 같은 도메인 테이블에 직접 하지 않는다. 쓰기 계열은 다음 2 단계만 허용된다:
+ *      1) `propose_save_memo`              : preview-only. DB 쓰기 없음.
+ *      2) `create_pending_action_for_memo` : pending_actions 에 INSERT. 최종 memos 쓰기는 approval confirm 에서.
  */
 export async function executeTool(
   name: string,
@@ -73,6 +83,8 @@ export async function executeTool(
       return runSearchWeb(rawArgs);
     case "propose_save_memo":
       return runProposeSaveMemo(rawArgs, ctx);
+    case "create_pending_action_for_memo":
+      return runCreatePendingActionForMemo(rawArgs, ctx);
     default: {
       const exhaustive: never = name;
       return { kind: "error", name: exhaustive, reason: "unreachable" };
@@ -154,21 +166,19 @@ async function runSearchWeb(raw: unknown): Promise<ToolResult> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// proposal tool (read-first 단계에서는 pending_action 을 만들지 않는다)
+// proposal tools (2-stage write-safe flow)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * propose_save_memo — proposal-only.
+ * Stage 1 — propose_save_memo (preview only).
  *
- * 이번 단계 정책:
- *  - 절대 DB 에 쓰지 않는다. pending_actions 도 만들지 않는다.
- *  - "이러이러한 내용으로 저장안을 만들 수 있습니다" 라는 구조화된 미리보기만 반환한다.
- *  - 모델은 이 결과를 받아서 사용자에게 "저장하시려면 메모 저장 UI 에서 확인해 주세요" 라고 안내한다.
- *  - 실제 pending_action 생성은 사용자가 UI(/memos Quick Capture) 에서 명시적으로 수행한다.
+ * DB 에 어떤 것도 쓰지 않는다. 저장 예정 내용의 구조화된 미리보기만 반환한다.
+ * 모델은 이 결과를 바탕으로 사용자에게 확인 질문을 던지거나,
+ * 사용자의 원문이 이미 명시적 저장 요청이면 바로 create_pending_action_for_memo 로 넘어간다.
  */
 async function runProposeSaveMemo(
   raw: unknown,
-  _ctx: AssistantRunContext,
+  ctx: AssistantRunContext,
 ): Promise<ToolResult> {
   const parsed = ProposeSaveMemoArgs.safeParse(raw);
   if (!parsed.success) {
@@ -181,6 +191,18 @@ async function runProposeSaveMemo(
 
   const content = parsed.data.content;
   const sensitivityMatches = detectSensitiveContent(content);
+  const sensitivityFlag = sensitivityMatches.length > 0;
+  const sensitivityCategories = sensitivityMatches.map((m) => m.category);
+
+  await logAssistantProposalGenerated({
+    actor_id: ctx.user_id,
+    actor_email: ctx.user_email ?? null,
+    session_id: ctx.session_id ?? null,
+    tool_name: "propose_save_memo",
+    content_length: content.length,
+    sensitivity_flag: sensitivityFlag,
+    sensitivity_categories: sensitivityCategories,
+  });
 
   return {
     kind: "data",
@@ -192,11 +214,88 @@ async function runProposeSaveMemo(
       project_key: parsed.data.project_key ?? null,
       content_preview: content.trim().slice(0, 200),
       content_length: content.length,
-      sensitivity_flag: sensitivityMatches.length > 0,
-      sensitivity_categories: sensitivityMatches.map((m) => m.category),
-      // 모델에게 보내는 가이드: 저장은 사용자가 UI 에서 명시적으로 해야 한다.
-      note: "This is a proposal preview only. No pending_action was created. The user must confirm via the memo UI.",
+      sensitivity_flag: sensitivityFlag,
+      sensitivity_categories: sensitivityCategories,
+      note: "This is a proposal preview only. No pending_action has been created. To actually queue the save, call create_pending_action_for_memo after the user has confirmed.",
     },
+  };
+}
+
+/**
+ * Stage 2 — create_pending_action_for_memo.
+ *
+ * 실제로 `pending_actions` 테이블에 `action_type=save_memo, status=awaiting_approval`
+ * 레코드를 INSERT 한다. 하지만 그 전에:
+ *
+ *   1) 현재 턴의 사용자 메시지가 명시적 저장 의도인지 서버 측에서 재검증(intent gate).
+ *      모델이 단독으로 "저장 의도가 있어 보인다" 라고 판단하는 것만으로는 통과할 수 없다.
+ *   2) `createMemoDraft` 에 들어가면 거기서 다시 `evaluateMemoCreate` 정책이 적용되고
+ *      `detectSensitiveContent` 가 sensitivity_flag 를 결정한다.
+ *
+ * memos 테이블에는 이 단계에서 아무것도 쓰지 않는다. 최종 저장은 여전히 /api/approvals/[id]/confirm 이다.
+ */
+async function runCreatePendingActionForMemo(
+  raw: unknown,
+  ctx: AssistantRunContext,
+): Promise<ToolResult> {
+  const parsed = CreatePendingActionForMemoArgs.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      kind: "error",
+      name: "create_pending_action_for_memo",
+      reason: "invalid_arguments",
+    };
+  }
+
+  // 1) Server-side intent gate.
+  const intent = evaluateSaveMemoIntent(ctx.user_message ?? "");
+  if (!intent.allowed) {
+    await logAssistantSaveIntentBlocked({
+      actor_id: ctx.user_id,
+      actor_email: ctx.user_email ?? null,
+      session_id: ctx.session_id ?? null,
+      reason: intent.reason,
+    });
+    return {
+      kind: "blocked",
+      name: "create_pending_action_for_memo",
+      reason: intent.reason,
+    };
+  }
+
+  // 2) Delegate to memos domain (runs policy + sensitivity + pending_actions INSERT + audit logs).
+  const result = await createMemoDraft(
+    {
+      content: parsed.data.content,
+      title: parsed.data.title ?? null,
+      project_key: parsed.data.project_key ?? null,
+      source_type: "chat",
+      explicit: true,
+    },
+    { user_id: ctx.user_id, user_email: ctx.user_email ?? null },
+  );
+
+  if (result.status === "blocked") {
+    return {
+      kind: "blocked",
+      name: "create_pending_action_for_memo",
+      reason: result.reason,
+    };
+  }
+
+  await logAssistantPendingActionCreated({
+    actor_id: ctx.user_id,
+    actor_email: ctx.user_email ?? null,
+    session_id: ctx.session_id ?? null,
+    pending_action_id: result.pending_action_id,
+    sensitivity_flag: result.sensitivity_flag,
+  });
+
+  return {
+    kind: "pending_action",
+    name: "create_pending_action_for_memo",
+    pending_action_id: result.pending_action_id,
+    sensitivity_flag: result.sensitivity_flag,
   };
 }
 

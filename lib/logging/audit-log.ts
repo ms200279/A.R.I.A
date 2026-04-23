@@ -450,6 +450,101 @@ export async function logAssistantPolicyBlocked(
   });
 }
 
+export type AssistantProposalGeneratedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  tool_name: string;
+  content_length: number;
+  sensitivity_flag: boolean;
+  sensitivity_categories: string[];
+};
+
+/**
+ * propose_save_memo (preview-only) 가 실행되어 저장안 미리보기가 만들어졌을 때.
+ * 아직 DB 에는 어떤 쓰기도 일어나지 않은 상태다.
+ */
+export async function logAssistantProposalGenerated(
+  params: AssistantProposalGeneratedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.proposal.generated",
+    result: "success",
+    module_name: "assistant.proposal",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_proposal",
+    target_id: params.tool_name,
+    metadata: {
+      session_id: params.session_id ?? null,
+      content_length: params.content_length,
+      sensitivity_flag: params.sensitivity_flag,
+      sensitivity_categories: params.sensitivity_categories,
+    },
+  });
+}
+
+export type AssistantSaveIntentBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  reason: string;
+};
+
+/**
+ * create_pending_action_for_memo 가 서버 측 intent 재검증에서 차단됐을 때.
+ * 어떤 메시지가 매칭 실패했는지는 기록하지 않는다 (원문 미노출 정책).
+ */
+export async function logAssistantSaveIntentBlocked(
+  params: AssistantSaveIntentBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.save_intent.blocked",
+    result: "failure",
+    module_name: "assistant.proposal",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "assistant_proposal",
+    error_code: params.reason,
+    metadata: {
+      session_id: params.session_id ?? null,
+    },
+  });
+}
+
+export type AssistantPendingActionCreatedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  session_id?: string | null;
+  pending_action_id: string;
+  sensitivity_flag: boolean;
+};
+
+/**
+ * create_pending_action_for_memo 가 pending_actions 레코드를 생성했을 때.
+ * memos 테이블에는 아직 쓰이지 않은 상태다 (approval confirm 에서 실제 저장).
+ */
+export async function logAssistantPendingActionCreated(
+  params: AssistantPendingActionCreatedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "assistant.pending_action.created",
+    result: "success",
+    module_name: "assistant.proposal",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "pending_action",
+    target_id: params.pending_action_id,
+    metadata: {
+      session_id: params.session_id ?? null,
+      sensitivity_flag: params.sensitivity_flag,
+    },
+  });
+}
+
 export type AssistantProviderErrorParams = {
   actor_id: string;
   actor_email?: string | null;
