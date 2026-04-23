@@ -3,13 +3,25 @@ import "server-only";
 export { runAssistant, type RunAssistantInput, type RunAssistantOutput } from "./run-assistant";
 export { mapAssistantAnswer } from "./response-mapper";
 export { SYSTEM_PROMPT } from "./system-prompt";
-export { DEFAULT_MODEL, resolveModelName, resolveMaxIterations } from "./client";
+export { resolveMaxIterations } from "./client";
 export { executeTool } from "./execute-tool";
 export {
-  TOOL_DEFS,
+  NEUTRAL_TOOL_DEFS,
   TOOL_TIERS,
   type ToolName,
 } from "./tools";
+export {
+  resolveProvider,
+  resolveProviderName,
+  GeminiProvider,
+  OpenAIProvider,
+  type AssistantProvider,
+  type AssistantProviderRunInput,
+  type AssistantProviderRunResult,
+  type NeutralTool,
+  type ProviderToolExecutor,
+  type ProviderName,
+} from "./providers";
 export type {
   AssistantAnswer,
   AssistantAnswerKind,
