@@ -55,7 +55,7 @@
 - `GET  /api/memos/search` — `?q=&limit=&project_key=&tag=` (부분일치: title/content/summary/project_key, `tag`·`project_key` 는 정확 일치 필터·`tag` 우선). `memo.searched` (쿼리 **길이**만, 원문 미로그).
 - `GET  /api/memos/[id]` — 단건. 404 시 `memo.read.missing`. 성공 시 `memo.read.detail`.
 - `POST /api/memos/create` — pending 저장 요청 (명시 저장만, 기존과 동일).
-- `POST /api/memos/[id]/summarize` — `summary` 갱신. body/query `mode`: `regenerate`(기본) | `if_empty` (이미 있으면 `memo.summarize.skipped`). `memo.summarized`.
+- `POST /api/memos/[id]/summarize` — `summary` 갱신. `lib/summarizers` (Gemini 가능 시) → 실패 시 `rule_based_v1` fallback. env: `SUMMARIZER_PROVIDER=auto|gemini|rule`, `GEMINI_API_KEY`, `GEMINI_MODEL`. body/query `mode`: `regenerate`(기본, **항상 덮어쓰기**) | `if_empty` (이미 있으면 `memo.summarize.skipped`, DB 미변경). 감사: `summarizer.request.received` → (`summarizer.gemini.failed` + `summarizer.fallback.used` 선택) → `memo.summary` 저장 후 `summarizer.provider.resolved` → `memo.summarized`. 저장 실패 시 `memo.summary.persist.failed`.
 - `PATCH/DELETE` — 없음
 
 ### `/api/mail`

@@ -293,7 +293,9 @@ export type MemoSummarizedParams = {
   actor_id: string;
   actor_email?: string | null;
   memo_id: string;
+  /** 표시용 전략 라벨 (rule_based_v1, gemini, fallback 등). */
   strategy: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 export async function logMemoSummarized(
@@ -308,7 +310,146 @@ export async function logMemoSummarized(
     actor_email: params.actor_email ?? null,
     target_type: "memo",
     target_id: params.memo_id,
-    metadata: { strategy: params.strategy },
+    metadata: {
+      strategy: params.strategy,
+      ...((params.metadata as Record<string, unknown> | null | undefined) ?? {}),
+    },
+  });
+}
+
+export type SummarizerRequestParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  resource_id: string;
+  content_length: number;
+  title_present: boolean;
+  intended_provider: "gemini" | "rule" | "auto";
+};
+
+export async function logSummarizerRequestReceived(
+  params: SummarizerRequestParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "summarizer.request.received",
+    result: "success",
+    module_name: "summarizer",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.resource_id,
+    metadata: {
+      content_length: params.content_length,
+      title_present: params.title_present,
+      intended_provider: params.intended_provider,
+    },
+  });
+}
+
+export type SummarizerProviderResolvedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  resource_id: string;
+  provider: string;
+  model: string | null;
+  strategy: string;
+};
+
+export async function logSummarizerProviderResolved(
+  params: SummarizerProviderResolvedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "summarizer.provider.resolved",
+    result: "success",
+    module_name: "summarizer",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.resource_id,
+    metadata: {
+      provider: params.provider,
+      model: params.model,
+      strategy: params.strategy,
+    },
+  });
+}
+
+export type SummarizerGeminiFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  resource_id: string;
+  error_code: string;
+  error_message?: string | null;
+};
+
+export async function logSummarizerGeminiFailed(
+  params: SummarizerGeminiFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "summarizer.gemini.failed",
+    result: "failure",
+    module_name: "summarizer.gemini",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.resource_id,
+    error_code: params.error_code,
+    error_message: params.error_message ?? null,
+  });
+}
+
+export type SummarizerFallbackParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  resource_id: string;
+  from_provider: string;
+  to_provider: string;
+  reason: string;
+};
+
+export async function logSummarizerFallbackUsed(
+  params: SummarizerFallbackParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "summarizer.fallback.used",
+    result: "success",
+    module_name: "summarizer",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.resource_id,
+    metadata: {
+      from_provider: params.from_provider,
+      to_provider: params.to_provider,
+      reason: params.reason,
+    },
+  });
+}
+
+export type MemoSummaryPersistFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  memo_id: string;
+  error_message?: string | null;
+};
+
+export async function logMemoSummaryPersistFailed(
+  params: MemoSummaryPersistFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.summary.persist.failed",
+    result: "failure",
+    module_name: "memos.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    error_code: "persist_failed",
+    error_message: params.error_message ?? null,
   });
 }
 

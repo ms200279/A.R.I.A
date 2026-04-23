@@ -23,6 +23,7 @@
 │    mail/          ← 메일 도메인 (읽기 중심)            │
 │    calendar/      ← 캘린더 도메인                      │
 │    integrations/  ← Gmail, GCal, 웹검색, 날씨 어댑터   │
+│    summarizers/  ← provider-agnostic 텍스트 요약 (rule / Gemini; 실패 시 fallback)  │
 │    supabase/      ← Supabase 클라이언트/헬퍼           │
 └──────────────┬───────────────────────────────────────┘
                │
@@ -40,6 +41,7 @@
 - **logging**: 감사 로그, 정책 위반 로그, 실행 로그. 원문 대신 포인터/요약 저장.
 - **documents/memos/mail/calendar**: 도메인 로직. Supabase / integrations 를 통해 I/O.
 - **integrations**: 외부 API 어댑터. 토큰 관리, 레이트 리밋, 에러 매핑.
+- **summarizers**: 메모·향후 문서 등에 공통으로 쓰는 요약 계약(`SummarizerInput`/`Output`). Gemini LLM 또는 `rule_based_v1`, 환경 변수 `SUMMARIZER_PROVIDER` 로 선택. 실패 시 서버 측에서 rule 로만 복구.
 - **supabase**: 서버/클라이언트/서비스 역할용 클라이언트 분리.
 
 ## 런타임 흐름 (예: 문서 요약)

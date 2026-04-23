@@ -17,8 +17,6 @@ export {
 } from "./search-memos";
 export {
   summarizeMemo,
-  ruleBasedSummarizer,
-  type SummarizerAdapter,
   type SummarizeMemoContext,
   type SummarizeMemoResult,
   type SummarizeMode,
