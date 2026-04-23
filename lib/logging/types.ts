@@ -28,6 +28,8 @@ export type AuditEventType =
   | "memo.create.pending"
   | "memo.approval.executed"
   | "memo.approval.rejected"
+  | "memo.approval.reject_idempotent"
+  | "memo.approval.confirm_idempotent"
   | "memo.approval.blocked"
   | "memo.summarized"
   | "memo.read.list"
@@ -56,7 +58,17 @@ export type AuditEventType =
   | "document.summarize.skipped"
   | "document.summarize.policy_blocked"
   | "document.summarized"
-  | "document.summary.persist.failed";
+  | "document.summary.persist.failed"
+  | "document.upload.started"
+  | "document.upload.storage_succeeded"
+  | "document.upload.storage_failed"
+  | "document.upload.row_created"
+  | "document.upload.parsing_started"
+  | "document.upload.parsing_completed"
+  | "document.upload.parsing_failed"
+  | "document.upload.preprocessing_blocked"
+  | "document.upload.completed"
+  | "document.upload.failed";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 

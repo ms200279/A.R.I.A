@@ -2,10 +2,16 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { createClient } from "@/lib/supabase/server";
-import { listMemos, listPendingSaveMemos, searchMemos } from "@/lib/memos";
+import {
+  listMemos,
+  listPendingSaveMemos,
+  listRecentSaveMemoOutcomes,
+  searchMemos,
+} from "@/lib/memos";
 
 import QuickCapture from "./_components/quick-capture";
 import PendingItem from "./_components/pending-item";
+import RecentPendingOutcomes from "./_components/recent-pending-outcomes";
 import SearchBox from "./_components/search-box";
 import MemoListItem from "./_components/memo-list-item";
 
@@ -35,6 +41,7 @@ export default async function MemosPage({ searchParams }: PageProps) {
       : undefined;
 
   const pending = await listPendingSaveMemos();
+  const recentOutcomes = await listRecentSaveMemoOutcomes(12);
   const memoResult = trimmed
     ? await searchMemos({
         query: trimmed,
@@ -79,6 +86,8 @@ export default async function MemosPage({ searchParams }: PageProps) {
             </ul>
           )}
         </section>
+
+        <RecentPendingOutcomes items={recentOutcomes} />
 
         <section className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

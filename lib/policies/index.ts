@@ -41,6 +41,12 @@ export {
 export { DOCUMENT_SUMMARIZE_INPUT_MAX_CHARS } from "./document-summary";
 
 export {
+  DOCUMENT_UPLOAD_MAX_BYTES,
+  validateDocumentUpload,
+  type UploadValidationResult,
+} from "./document-upload";
+
+export {
   evaluateAssistantPreGate,
   evaluateSaveMemoIntent,
   type AssistantPolicyBlockReason,

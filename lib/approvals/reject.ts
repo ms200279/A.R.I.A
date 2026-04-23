@@ -47,6 +47,13 @@ export async function rejectPendingAction(
       if (result.status === "rejected") {
         return { status: "rejected", action_type: actionType };
       }
+      if (result.status === "invalid_state") {
+        return {
+          status: "invalid_state",
+          action_type: actionType,
+          current_status: result.current_status,
+        };
+      }
       return {
         status: "error",
         action_type: actionType,

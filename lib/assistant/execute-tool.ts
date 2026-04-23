@@ -327,6 +327,7 @@ type MemoProjection = {
   project_key: string | null;
   sensitivity_flag: boolean;
   created_at: string;
+  updated_at: string;
 };
 
 function projectMemoForModel(memo: {
@@ -337,6 +338,7 @@ function projectMemoForModel(memo: {
   project_key: string | null;
   sensitivity_flag: boolean;
   created_at: string;
+  updated_at: string;
 }): MemoProjection {
   // 모델 컨텍스트를 아끼기 위해 원문 대신 summary(있으면) 또는 200자 미리보기만 넘긴다.
   const preview = (memo.summary ?? memo.content).trim().slice(0, 200);
@@ -347,5 +349,6 @@ function projectMemoForModel(memo: {
     project_key: memo.project_key,
     sensitivity_flag: memo.sensitivity_flag,
     created_at: memo.created_at,
+    updated_at: memo.updated_at,
   };
 }

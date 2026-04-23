@@ -23,6 +23,7 @@ export {
 } from "./summarize-memo";
 export { MEMO_ROW_SELECT } from "./memo-columns";
 export { listPendingSaveMemos } from "./list-pending";
+export { listRecentSaveMemoOutcomes } from "./list-pending-outcomes";
 export type {
   CreateMemoInput,
   CreateMemoResult,

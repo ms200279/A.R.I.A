@@ -1,7 +1,9 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { logMemoApprovalConfirmIdempotent } from "@/lib/logging/audit-log";
 import { executeApprovedMemo } from "@/lib/memos";
+import { isMemoSavedPendingResult } from "@/lib/memos/pending-result-guards";
 import type { PendingActionStatus } from "@/types/pending-action";
 
 import type { ApprovalActor, ConfirmResult } from "./types";
@@ -23,7 +25,7 @@ export async function confirmPendingAction(
 
   const { data: pending, error } = await service
     .from("pending_actions")
-    .select("id, user_id, action_type, status")
+    .select("id, user_id, action_type, status, result")
     .eq("id", pendingActionId)
     .eq("user_id", actor.user_id)
     .maybeSingle();
@@ -34,6 +36,23 @@ export async function confirmPendingAction(
   const currentStatus = pending.status as PendingActionStatus;
 
   if (currentStatus !== "awaiting_approval") {
+    if (
+      actionType === "save_memo" &&
+      currentStatus === "executed" &&
+      isMemoSavedPendingResult(pending.result)
+    ) {
+      await logMemoApprovalConfirmIdempotent({
+        actor_id: actor.user_id,
+        actor_email: actor.user_email ?? null,
+        pending_action_id: pendingActionId,
+        memo_id: pending.result.memo_id,
+      });
+      return {
+        status: "executed",
+        action_type: actionType,
+        memo_id: pending.result.memo_id,
+      };
+    }
     return {
       status: "invalid_state",
       action_type: actionType,
@@ -59,6 +78,13 @@ export async function confirmPendingAction(
           status: "blocked",
           action_type: actionType,
           reason: result.reason,
+        };
+      }
+      if (result.status === "invalid_state") {
+        return {
+          status: "invalid_state",
+          action_type: actionType,
+          current_status: result.current_status,
         };
       }
       return {

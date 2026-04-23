@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { MemoSourceType } from "@/types/memo";
+import type { PendingActionStatus } from "@/types/pending-action";
 
 export type CreateMemoInput = {
   content: string;
@@ -40,6 +41,11 @@ export type ExecuteMemoResult =
       reason: string;
     }
   | {
+      /** awaiting_approval 이 아닌 상태에서 confirm 이 들어온 경우(재실행 금지). */
+      status: "invalid_state";
+      current_status: PendingActionStatus;
+    }
+  | {
       /**
        * 일시적/기술적 오류 (claim 실패, memo_insert_failed 등).
        * 원칙적으로 재시도 가능하며 HTTP 5xx 로 표현한다.
@@ -50,6 +56,10 @@ export type ExecuteMemoResult =
 
 export type RejectMemoResult =
   | { status: "rejected" }
+  | {
+      status: "invalid_state";
+      current_status: PendingActionStatus;
+    }
   | { status: "error"; reason: string };
 
 export const DEFAULT_LIST_LIMIT = 50;
