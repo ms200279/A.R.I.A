@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 
+import { subscribeAuthCompleted } from "@/lib/auth/cross-tab";
 import { createClient } from "@/lib/supabase/browser";
 
 /**
@@ -9,18 +12,86 @@ import { createClient } from "@/lib/supabase/browser";
  * - 이번 단계에서는 매직링크(이메일 OTP) 한 가지 경로만 제공한다.
  * - Google OAuth 등은 후속 단계에서 공급자 버튼을 추가한다.
  * - 실제 UX 는 최소한이며, 승인/초안 관련 UI 패턴과 섞지 않는다.
+ *
+ * 탭 유지 UX 메모:
+ * - 사용자가 메일 링크를 눌러 인증이 완료되면, 그 인증은 같은 탭 / 새 탭 / 다른 창
+ *   어디에서든 일어날 수 있다. 어느 경로든 원래 탭(= 이 페이지) 이 자동으로
+ *   다음 단계로 넘어가도록 BroadcastChannel + storage + 주기 폴링 3단 구조로 감지한다.
  */
 export default function LoginPage() {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const redirectedRef = useRef(false);
+
+  const goNext = useCallback(
+    (next: string) => {
+      if (redirectedRef.current) return;
+      redirectedRef.current = true;
+      const target = (next && next.startsWith("/") ? next : "/") as Route;
+      router.replace(target);
+    },
+    [router],
+  );
+
+  // 이미 로그인된 상태로 /login 에 진입한 경우 즉시 이동.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!cancelled && data.user) {
+        goNext("/");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, goNext]);
+
+  // "보냄" 상태에서만 감지 루프를 돌린다.
+  useEffect(() => {
+    if (status !== "sent") return;
+
+    const checkSession = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data.user) goNext("/");
+      } catch {
+        // 네트워크 순간 단절 등은 무시하고 다음 틱에 재시도.
+      }
+    };
+
+    const intervalId = window.setInterval(checkSession, 4000);
+    const onFocus = () => {
+      void checkSession();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void checkSession();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const unsubscribe = subscribeAuthCompleted((payload) => {
+      goNext(payload.next ?? "/");
+    });
+
+    void checkSession();
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      unsubscribe();
+    };
+  }, [status, supabase, goNext]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("sending");
     setMessage(null);
     try {
-      const supabase = createClient();
       const origin = window.location.origin;
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -34,11 +105,50 @@ export default function LoginPage() {
         return;
       }
       setStatus("sent");
-      setMessage("메일로 보낸 로그인 링크를 확인하세요.");
+      setMessage("로그인 링크를 이메일로 보냈습니다. 이 창은 닫지 마세요.");
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "알 수 없는 오류");
     }
+  }
+
+  function onUseDifferentEmail() {
+    setStatus("idle");
+    setMessage(null);
+  }
+
+  if (status === "sent") {
+    return (
+      <section className="space-y-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">메일을 확인해 주세요</h1>
+          <p className="text-sm opacity-75">
+            {email ? `${email} 로 ` : ""}
+            로그인 링크를 보냈습니다. 메일의 링크를 클릭하면 이 창이 자동으로 다음 화면으로 이동합니다.
+          </p>
+        </header>
+
+        <div className="rounded border border-black/10 p-3 text-xs opacity-75 dark:border-white/15">
+          <p className="font-medium">이 창을 닫지 마세요.</p>
+          <p className="mt-1">
+            링크는 다른 탭/창에서 열려도 괜찮습니다. 인증이 끝나면 이 창이 자동으로 감지해 이동합니다.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs">
+          <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-current opacity-60" aria-hidden />
+          <span className="opacity-75">인증 완료 대기 중...</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={onUseDifferentEmail}
+          className="text-xs underline opacity-75 hover:opacity-100"
+        >
+          다른 이메일로 다시 시도
+        </button>
+      </section>
+    );
   }
 
   return (
