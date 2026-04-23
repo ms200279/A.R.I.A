@@ -28,7 +28,12 @@ export type AuditEventType =
   | "memo.create.pending"
   | "memo.approval.executed"
   | "memo.approval.rejected"
-  | "memo.summarized";
+  | "memo.summarized"
+  | "assistant.request.received"
+  | "assistant.tool.invoked"
+  | "assistant.tool.blocked"
+  | "assistant.run.completed"
+  | "assistant.run.failed";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 

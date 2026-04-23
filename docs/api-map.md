@@ -21,7 +21,13 @@
 
 ### `/api/assistant`
 
-- `POST /api/assistant` — 자연어 요청 처리, 오케스트레이터 호출.
+- `POST /api/assistant/query` — 자연어 요청 진입점.
+  - 서버 전용 OpenAI Responses API + function calling 으로 구동된다.
+  - 본문: `{ message: string, session_id?: string | null }`.
+  - 응답: `{ answer: AssistantAnswer, tool_trace, pending_action_ids, iterations }`.
+  - `AssistantAnswer.kind` ∈ `direct_answer | clarification_question | proposed_action | approval_required | blocked`.
+  - 쓰기 계열 tool (현재는 `propose_save_memo`) 은 직접 실행하지 않고 `pending_actions` 를 생성한다.
+  - 모델은 절대 브라우저에서 호출하지 않는다. 모든 호출은 Route Handler → `lib/assistant.runAssistant` 경유.
 
 ### `/api/documents`
 
