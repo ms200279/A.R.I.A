@@ -259,6 +259,52 @@ export async function logMemoApprovalRejected(
   });
 }
 
+export type MemoApprovalRejectIdempotentParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+};
+
+/** 이미 rejected 인 요청에 대해 재거절 시도(저장 없음). */
+export async function logMemoApprovalRejectIdempotent(
+  params: MemoApprovalRejectIdempotentParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.approval.reject_idempotent",
+    result: "success",
+    module_name: "memos.approval",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "pending_action",
+    target_id: params.pending_action_id,
+  });
+}
+
+export type MemoApprovalConfirmIdempotentParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  pending_action_id: string;
+  memo_id: string;
+};
+
+/** 이미 executed 인 pending 에 대해 confirm 재시도(추가 memos 쓰기 없음). */
+export async function logMemoApprovalConfirmIdempotent(
+  params: MemoApprovalConfirmIdempotentParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.approval.confirm_idempotent",
+    result: "success",
+    module_name: "memos.approval",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    metadata: { pending_action_id: params.pending_action_id },
+  });
+}
+
 export type MemoApprovalBlockedParams = {
   actor_id: string;
   actor_email?: string | null;
@@ -670,6 +716,239 @@ export async function logMemoSummarizeSkipped(
 // ─────────────────────────────────────────────────────────────────────────────
 // Document helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+export type DocumentUploadStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  file_name: string;
+  file_size: number;
+  declared_mime: string;
+};
+
+export async function logDocumentUploadStarted(
+  params: DocumentUploadStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.started",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: null,
+    metadata: {
+      file_name: params.file_name,
+      file_size: params.file_size,
+      declared_mime: params.declared_mime,
+    },
+  });
+}
+
+export type DocumentUploadRowCreatedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  sha256_prefix: string;
+};
+
+export async function logDocumentUploadRowCreated(
+  params: DocumentUploadRowCreatedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.row_created",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: { sha256_prefix: params.sha256_prefix },
+  });
+}
+
+export type DocumentUploadStorageParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  storage_path: string;
+  error_message?: string | null;
+};
+
+export async function logDocumentUploadStorageSucceeded(
+  params: DocumentUploadStorageParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.storage_succeeded",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: { storage_path: params.storage_path },
+  });
+}
+
+export async function logDocumentUploadStorageFailed(
+  params: DocumentUploadStorageParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.storage_failed",
+    result: "failure",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_message: params.error_message ?? null,
+    metadata: { storage_path: params.storage_path },
+  });
+}
+
+export type DocumentUploadParsingParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  outcome: string;
+  chunk_count?: number | null;
+  error_code?: string | null;
+};
+
+export type DocumentUploadParsingStartedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+};
+
+export async function logDocumentUploadParsingStarted(
+  params: DocumentUploadParsingStartedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.parsing_started",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: null,
+  });
+}
+
+export async function logDocumentUploadParsingCompleted(
+  params: DocumentUploadParsingParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.parsing_completed",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      outcome: params.outcome,
+      chunk_count: params.chunk_count ?? null,
+      error_code: params.error_code ?? null,
+    },
+  });
+}
+
+export async function logDocumentUploadParsingFailed(
+  params: DocumentUploadParsingParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.parsing_failed",
+    result: "failure",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.error_code ?? null,
+    metadata: { outcome: params.outcome },
+  });
+}
+
+export type DocumentUploadPreprocessingBlockedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  reason: string;
+};
+
+export async function logDocumentUploadPreprocessingBlocked(
+  params: DocumentUploadPreprocessingBlockedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.preprocessing_blocked",
+    result: "failure",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    error_code: params.reason,
+  });
+}
+
+export type DocumentUploadCompletedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id: string;
+  chunk_count: number;
+  parsed_text_truncated: boolean;
+};
+
+export async function logDocumentUploadCompleted(
+  params: DocumentUploadCompletedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.completed",
+    result: "success",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id,
+    metadata: {
+      chunk_count: params.chunk_count,
+      parsed_text_truncated: params.parsed_text_truncated,
+    },
+  });
+}
+
+export type DocumentUploadFailedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  document_id?: string | null;
+  reason: string;
+};
+
+export async function logDocumentUploadFailed(
+  params: DocumentUploadFailedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.upload.failed",
+    result: "failure",
+    module_name: "documents.upload",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "document",
+    target_id: params.document_id ?? null,
+    error_code: params.reason,
+  });
+}
 
 export type DocumentSummarizeStartedParams = {
   actor_id: string;

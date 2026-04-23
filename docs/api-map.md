@@ -45,7 +45,8 @@
 
 - `GET  /api/documents` — 소유 문서 목록
 - `GET  /api/documents/[id]` — 문서 메타
-- `POST /api/documents` — 업로드 (metadata + storage path)
+- `POST /api/documents/upload` — multipart 업로드 (`file` 필수, `title` 선택). `lib/documents/ingest-upload`: 인증 → 크기/MIME 게이트(`lib/policies/document-upload`, txt/md, 5MiB) → `documents` 행 생성 → Supabase Storage `documents` 버킷(`{user_id}/{document_id}/{safeName}`) → UTF-8 파싱 → `prepareDocumentTextForSummarize` → `document_chunks` 일괄 insert → `parsed_text`·`parsing_status`·`preprocessing_status`·`status` 갱신. PDF 등은 업로드 단계에서 차단. 감사: `document.upload.started` → `row_created` → `storage_succeeded|failed` → `parsing_started` → `parsing_completed|failed` → (`preprocessing_blocked`) → `completed` \| `failed`.
+- `POST /api/documents` — (레거시 초안; 실제 업로드는 `/upload` 사용)
 - `POST /api/documents/[id]/summarize` — 요약 요청. `lib/documents/summarize-document`: `document_chunks`(우선) 또는 `parsed_text` → 비신뢰 전처리(`prepareDocument*ForSummarize`) → `ResourceKind.document` 로 `runSummarizerWithFallback`(청크·합성은 summarizer 내부). 결과는 `document_summaries` 에 `summary_type=summary` **UPSERT**(문서당 1행). body/query `mode`: `regenerate`(기본) \| `if_empty`. 빈 본문·정책 초과는 400. 감사: `document.summarize.started` → `summarizer.request.received` → `summarizer.safety.evaluated`(내부) → (Gemini 실패 시 fallback 로그) → `summarizer.provider.resolved` → `document.summarized` \| `document.summary.persist.failed`.
 - `POST /api/documents/compare` — 다문서 비교
 
@@ -87,26 +88,27 @@
 - `POST  /api/approvals/[id]/confirm` — 승인 후 실제 실행 트리거.
   - 도메인 로직: `lib/approvals.confirmPendingAction(id, actor)` → action_type 별 위임 (`save_memo` → `lib/memos.executeApprovedMemo`).
   - 상태 전이: `awaiting_approval → approved → executed` (성공) / `awaiting_approval → blocked` (payload/정책 재검증 실패) / 실행 실패 시 `approved → awaiting_approval` 로 rollback.
-  - 검증: service_role 재조회로 소유자/action_type/status 확인 → `SaveMemoPayloadSchema` Zod parse → `detectSensitiveContent` 로 `sensitivity_flag` 재산출 → optimistic claim → `memos` INSERT.
+  - 검증: service_role 재조회 → `SaveMemoPayloadSchema` Zod parse → confirm 시점 `evaluateMemoCreate(..., explicit: true)` + `detectSensitiveContent` → optimistic claim → `memos` INSERT → `pending_actions` 를 `approved` 에서만 `executed` 로 확정(WHERE status=approved).
   - 응답 & HTTP 매핑:
     - `{ status:"executed", action_type:"save_memo", memo_id }` → 200.
     - `{ status:"blocked",  action_type, reason }` → 200 (정책 결정이므로 4xx/5xx 아님).
     - `{ error:"not_found" }` → 404 (소유자 불일치 또는 존재하지 않음).
-    - `{ error:"invalid_status", action_type, current_status }` → 409 (이미 executed/rejected/blocked 등).
+    - `{ error:"invalid_status", action_type, current_status }` → 409 (재실행 금지; 단 이미 `executed` 이고 `result.kind=memo_saved` 인 `save_memo` 는 멱등 200 + 동일 `memo_id`, `memo.approval.confirm_idempotent`).
     - `{ error:"unsupported_action_type", action_type }` → 400.
     - `{ error:<reason>, action_type }` → 500 (claim_failed / memo_insert_failed 등 일시적 오류).
-  - 감사 로그: `memo.approval.executed` (성공) / `memo.approval.blocked` (정책·payload 차단).
+  - 감사 로그: `memo.approval.executed` (성공) / `memo.approval.confirm_idempotent` (중복 confirm) / `memo.approval.blocked` (정책·payload 차단).
 - `POST  /api/approvals/[id]/reject` — 사용자 거절.
   - 도메인 로직: `lib/approvals.rejectPendingAction(id, actor)` → `lib/memos.rejectMemoAction`.
   - 상태 전이: `awaiting_approval → rejected`. `memos` 에는 쓰지 않는다.
   - 응답 & HTTP 매핑:
     - `{ status:"rejected", action_type:"save_memo" }` → 200.
     - `not_found` / `invalid_status` / `unsupported_action_type` / `error` 는 confirm 과 동일 매핑.
-  - 감사 로그: `memo.approval.rejected`.
+  - 감사 로그: `memo.approval.rejected` / 중복 거절 시 `memo.approval.reject_idempotent`.
 
 정책 요약 (memos write):
 - `memos` 에 대한 INSERT 경로는 서버의 `executeApprovedMemo` 단 하나. confirm 이전에는 어떤 경로로도 insert 되지 않는다.
-- 이미 `executed` / `rejected` / `blocked` / `approved` 인 pending_action 은 재confirm/재reject 가 모두 409 로 차단된다.
+- `save_memo` confirm: 이미 `executed` + `memo_saved` 면 200 멱등. 그 외 `rejected` / `blocked` / `approved`(중간) 등에서의 재confirm 은 409.
+- reject: 이미 `rejected` 면 200 멱등 로그만; `executed` 등이면 409.
 
 ## 금지된 엔드포인트 (의도적으로 만들지 않음)
 

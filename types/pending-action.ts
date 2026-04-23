@@ -42,3 +42,14 @@ export type PendingAction<TPayload = unknown> = {
 };
 
 export type SaveMemoPending = PendingAction<SaveMemoPayload>;
+
+/** 목록 UI 용: 종료된 save_memo pending 행(감사·히스토리). */
+export type SaveMemoPendingOutcome = {
+  id: string;
+  status: "executed" | "rejected" | "blocked";
+  payload: SaveMemoPayload;
+  blocked_reason: string | null;
+  result: unknown;
+  created_at: string;
+  updated_at: string;
+};
