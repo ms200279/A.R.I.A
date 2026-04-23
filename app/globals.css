@@ -1,21 +1,53 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+ * aria — dark-first design tokens
+ *
+ * 로그인 화면·메모 화면·assistant 대시보드가 동일한 다크 베이스를
+ * 공유한다. 라이트 모드는 이번 단계에서 다루지 않는다.
+ * ─────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-}
+  /* 표면 계층 */
+  --bg-base: #05070a;
+  --bg-raised: #0b0f17;
+  --bg-elevated: #11161f;
+  --bg-overlay: rgba(255, 255, 255, 0.04);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0f17;
-    --foreground: #e2e8f0;
-  }
+  /* 경계 / 구분선 */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* 텍스트 */
+  --text-primary: #e5e9f0;
+  --text-secondary: #a0a8b4;
+  --text-tertiary: #5b6573;
+  --text-inverted: #05070a;
+
+  /* 포인트 컬러 — 절제된 blue-white */
+  --accent: #9bb4ff;
+  --accent-soft: rgba(155, 180, 255, 0.16);
+  --accent-strong: #c7d4ff;
+
+  /* 상태 */
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --warning: #f4c36b;
+  --warning-soft: rgba(244, 195, 107, 0.12);
+
+  /* 기본 글꼴 크기 등 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  color-scheme: dark;
 }
 
 html,
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg-base);
+  color: var(--text-primary);
 }
 
 body {
@@ -32,4 +64,54 @@ body {
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 기본 폼 컨트롤이 흰 배경으로 튀지 않게 */
+input,
+textarea,
+button {
+  color: inherit;
+}
+
+/* Firefox 스크롤바도 살짝만 */
+* {
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  scrollbar-width: thin;
+}
+
+/* WebKit 스크롤바 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* 선택 하이라이트 */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* 모바일 사이드바 drawer 진입 애니메이션 */
+@keyframes ariaDrawerIn {
+  from {
+    transform: translateX(-8%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.aria-drawer-in {
+  animation: ariaDrawerIn 180ms ease-out;
 }

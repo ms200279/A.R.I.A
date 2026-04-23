@@ -16,8 +16,9 @@ export default async function MemoDetailPage({ params }: PageProps) {
   if (!memo) notFound();
 
   return (
-    <section className="space-y-6">
-      <nav className="text-xs opacity-60">
+    <div className="h-full overflow-y-auto">
+      <section className="mx-auto max-w-4xl space-y-6 px-6 py-10">
+      <nav className="text-xs text-[var(--text-tertiary)]">
         <Link href={"/memos" as Route} className="underline-offset-2 hover:underline">
           ← 메모 목록
         </Link>
@@ -57,10 +58,11 @@ export default async function MemoDetailPage({ params }: PageProps) {
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">본문</h3>
-        <pre className="whitespace-pre-wrap break-words rounded border border-black/10 p-3 text-sm dark:border-white/10">
+        <pre className="whitespace-pre-wrap break-words rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm">
           {memo.content}
         </pre>
       </section>
-    </section>
+      </section>
+    </div>
   );
 }
