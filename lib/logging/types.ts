@@ -68,7 +68,28 @@ export type AuditEventType =
   | "document.upload.parsing_failed"
   | "document.upload.preprocessing_blocked"
   | "document.upload.completed"
-  | "document.upload.failed";
+  | "document.upload.failed"
+  | "document.read.started"
+  | "document.read.detail"
+  | "document.read.missing"
+  | "document.read.forbidden"
+  | "document.read.summary_failed"
+  | "document.read.list_started"
+  | "document.read.list"
+  | "document.read.list_failed"
+  | "document.read.summaries_started"
+  | "document.read.summaries"
+  | "document.read.summaries_failed"
+  | "document.compare.started"
+  | "document.compare.completed"
+  | "document.compare.policy_blocked"
+  | "document.compare.failed"
+  | "document.compare.history_saved"
+  | "document.compare.history_failed"
+  | "document.analyze.started"
+  | "document.analyze.completed"
+  | "document.analyze.policy_blocked"
+  | "document.analyze.failed";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 

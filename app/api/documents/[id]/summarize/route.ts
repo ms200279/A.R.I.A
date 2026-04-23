@@ -73,13 +73,18 @@ export async function POST(request: Request, { params }: Params) {
   );
 
   if (result.status === "error") {
-    const status =
-      result.reason === "document_not_found"
-        ? 404
-        : result.reason === "content_policy_violation" ||
-            result.reason === "document_empty"
-          ? 400
-          : 500;
+    const statusMap: Record<string, number> = {
+      document_not_found: 404,
+      forbidden: 403,
+      document_empty: 400,
+      document_not_ready: 409,
+      document_not_summarizable: 422,
+      content_policy_violation: 400,
+      summary_empty: 502,
+      summary_persist_failed: 500,
+      document_chunks_load_failed: 500,
+    };
+    const status = statusMap[result.reason] ?? 500;
     return NextResponse.json({ error: result.reason }, { status });
   }
 

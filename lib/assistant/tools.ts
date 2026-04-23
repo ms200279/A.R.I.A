@@ -26,6 +26,10 @@ export type ToolName =
   | "get_recent_memos"
   | "get_weather"
   | "search_web"
+  | "list_documents"
+  | "get_document_detail"
+  | "compare_documents"
+  | "analyze_document"
   | "propose_save_memo"
   | "create_pending_action_for_memo";
 
@@ -58,6 +62,28 @@ export const SearchWebArgs = z.object({
 });
 export type SearchWebArgs = z.infer<typeof SearchWebArgs>;
 
+export const ListDocumentsArgs = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
+  cursor: z.string().max(80).optional().nullable(),
+  sort: z.enum(["created_at", "updated_at"]).optional(),
+});
+export type ListDocumentsArgs = z.infer<typeof ListDocumentsArgs>;
+
+export const GetDocumentDetailArgs = z.object({
+  document_id: z.string().uuid(),
+});
+export type GetDocumentDetailArgs = z.infer<typeof GetDocumentDetailArgs>;
+
+export const CompareDocumentsArgs = z.object({
+  document_ids: z.array(z.string().uuid()).min(2).max(8),
+});
+export type CompareDocumentsArgs = z.infer<typeof CompareDocumentsArgs>;
+
+export const AnalyzeDocumentArgs = z.object({
+  document_id: z.string().uuid(),
+});
+export type AnalyzeDocumentArgs = z.infer<typeof AnalyzeDocumentArgs>;
+
 export const ProposeSaveMemoArgs = z.object({
   title: z.string().min(1).max(200).optional().nullable(),
   content: z.string().min(1).max(50_000),
@@ -82,6 +108,10 @@ export const TOOL_TIERS: Record<ToolName, ToolAccessTier> = {
   get_recent_memos: "read",
   get_weather: "read",
   search_web: "read",
+  list_documents: "read",
+  get_document_detail: "read",
+  compare_documents: "read",
+  analyze_document: "read",
   propose_save_memo: "proposal",
   create_pending_action_for_memo: "proposal",
 };
@@ -175,6 +205,85 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
         },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "list_documents",
+    description:
+      "사용자가 업로드한 문서 목록을 조회한다. 각 항목에 메타·요약 존재 여부·짧은 요약 미리보기가 포함된다. 원문 전체는 포함되지 않는다. '내 문서 목록', '업로드한 파일' 질문에 사용한다.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        limit: {
+          type: "integer",
+          description: "최대 개수. 기본 30, 상한 100.",
+          minimum: 1,
+          maximum: 100,
+        },
+        cursor: {
+          type: ["string", "null"],
+          description:
+            "다음 페이지 커서(ISO 타임스탬프). 이전 응답의 next_cursor 를 그대로 넘긴다.",
+        },
+        sort: {
+          type: "string",
+          enum: ["created_at", "updated_at"],
+          description: "정렬 기준. 기본은 updated_at(최근 수정 우선).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_document_detail",
+    description:
+      "단일 문서의 메타데이터·파이프라인 상태·청크 개수·최신 요약 본문을 조회한다. 원문(parsed_text)과 청크 본문은 반환되지 않는다. document_id는 list_documents 결과의 id이다.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        document_id: {
+          type: "string",
+          description: "문서 UUID.",
+        },
+      },
+      required: ["document_id"],
+    },
+  },
+  {
+    name: "compare_documents",
+    description:
+      "사용자가 소유한 두 개 이상의 문서(최대 8개)를 비교한다. 차이점·공통점·갈등/누락을 구조화해 반환한다. document_ids는 list_documents의 id를 사용한다. 첫 id는 저장 앵커로 쓰인다.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        document_ids: {
+          type: "array",
+          description: "비교할 문서 UUID 목록(최소 2, 최대 8).",
+          items: { type: "string" },
+          minItems: 2,
+          maxItems: 8,
+        },
+      },
+      required: ["document_ids"],
+    },
+  },
+  {
+    name: "analyze_document",
+    description:
+      "단일 문서에 대해 요약보다 한 단계 해석적인 분석(구조·핵심·리스크·후속 질문)을 수행한다. document_id는 list_documents 결과의 id이다.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        document_id: {
+          type: "string",
+          description: "문서 UUID.",
+        },
+      },
+      required: ["document_id"],
     },
   },
   {

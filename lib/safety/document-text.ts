@@ -18,3 +18,13 @@ export function prepareDocumentTextForSummarize(raw: string): string {
 export function prepareDocumentChunkTextForSummarize(chunk: string): string {
   return prepareDocumentTextForSummarize(chunk);
 }
+
+/**
+ * DB 에 저장된 요약 문자열을 API 응답에 실을 때 최소 정리(제어문자·NUL 제거).
+ * 모델 출력이지만 외부 파이프라인을 거친 문자열로 동일 취급한다.
+ */
+export function sanitizeStoredSummaryForRead(raw: string): string {
+  let s = raw.replace(/\0/g, "");
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  return s.trim();
+}
