@@ -35,6 +35,8 @@ export {
 
 export {
   evaluateAssistantPreGate,
+  evaluateSaveMemoIntent,
   type AssistantPolicyBlockReason,
   type AssistantPreGateResult,
+  type SaveMemoIntentEvaluation,
 } from "./assistant";

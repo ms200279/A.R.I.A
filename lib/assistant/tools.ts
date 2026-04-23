@@ -26,7 +26,8 @@ export type ToolName =
   | "get_recent_memos"
   | "get_weather"
   | "search_web"
-  | "propose_save_memo";
+  | "propose_save_memo"
+  | "create_pending_action_for_memo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Zod schemas (서버 측 validation)
@@ -62,6 +63,14 @@ export const ProposeSaveMemoArgs = z.object({
 });
 export type ProposeSaveMemoArgs = z.infer<typeof ProposeSaveMemoArgs>;
 
+/**
+ * create_pending_action_for_memo 는 인자 스키마가 propose_save_memo 와 동일하다.
+ * 같은 Zod 객체를 재사용해서 모델에 두 단계 흐름을 "동일 페이로드로 호출하라" 라고
+ * 명시하는 효과도 얻는다.
+ */
+export const CreatePendingActionForMemoArgs = ProposeSaveMemoArgs;
+export type CreatePendingActionForMemoArgs = ProposeSaveMemoArgs;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tier map
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +81,7 @@ export const TOOL_TIERS: Record<ToolName, ToolAccessTier> = {
   get_weather: "read",
   search_web: "read",
   propose_save_memo: "proposal",
+  create_pending_action_for_memo: "proposal",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,7 +172,7 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
   {
     name: "propose_save_memo",
     description:
-      "메모 '저장안(proposal)'을 생성한다. 현재 단계에서는 이 도구가 pending_action 레코드를 만들지 않는다. 대신 저장 대상(제목/본문 미리보기/project_key/민감정보 플래그)을 구조화된 proposal 로 반환하고, 모델은 사용자에게 '이런 내용으로 저장안을 만들 수 있습니다. 저장하시려면 메모 저장 UI 에서 확인해 주세요' 라는 취지를 안내해야 한다. 직접 저장을 수행하지 않는다.",
+      "메모 '저장안(proposal)'의 미리보기를 생성한다. 이 도구는 DB 에 어떤 것도 쓰지 않는다. 오직 저장 예정 내용(제목/본문 미리보기/project_key/민감정보 플래그)을 구조화된 데이터로 반환한다. 사용자가 '이거 메모해줘' 등 저장 의도를 보이면 먼저 이 도구를 호출해 저장안을 구성하고, 사용자가 내용을 확인·동의한 뒤에 create_pending_action_for_memo 를 호출한다.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -174,6 +184,31 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
         content: {
           type: "string",
           description: "메모 본문. 1~50000자.",
+        },
+        project_key: {
+          type: ["string", "null"],
+          description: "프로젝트 키(선택).",
+        },
+      },
+      required: ["content"],
+    },
+  },
+  {
+    name: "create_pending_action_for_memo",
+    description:
+      "사용자가 propose_save_memo 의 저장안에 명시적으로 동의한 경우(또는 사용자의 첫 메시지가 이미 '이거 메모해줘' 처럼 명백한 저장 요청인 경우)에만 호출한다. pending_actions 테이블에 action_type=save_memo, status=awaiting_approval 레코드를 생성한다. 이 도구는 memos 테이블에 직접 쓰지 않는다. 최종 저장은 사용자가 /memos 승인 UI 에서 '저장 승인' 을 눌러야 일어난다. 서버는 별도 정책 게이트로 사용자의 현재 턴이 명시적 저장 의도인지 재검증하며, 의도가 모호하면 이 도구는 차단된다. 차단되면 모델은 사용자에게 다시 확인을 요청해야 한다.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: {
+          type: ["string", "null"],
+          description: "메모 제목(선택). 200자 이내.",
+        },
+        content: {
+          type: "string",
+          description:
+            "메모 본문. 1~50000자. propose_save_memo 에서 사용자가 확인한 내용을 그대로 사용한다.",
         },
         project_key: {
           type: ["string", "null"],

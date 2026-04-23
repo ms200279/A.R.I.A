@@ -98,3 +98,59 @@ export function evaluateAssistantPreGate(userMessage: string): AssistantPreGateR
   }
   return { decision: "allow" };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// save-memo intent 재검증
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * assistant 가 `create_pending_action_for_memo` 를 호출하려 할 때
+ * 사용자의 현재 턴 메시지가 실제로 저장을 명시적으로 요청(또는 이전 제안에 동의)했는지
+ * 서버 측에서 한 번 더 검증한다.
+ *
+ * 이 게이트가 없으면 모델 단독 판단만으로 pending_action 이 만들어질 수 있다.
+ * 자동 장기 기억 금지 / 명시 저장만 허용 정책을 지키기 위한 keyword-level 안전장치다.
+ *
+ * 패턴은 의도적으로 보수적이다. 애매한 턴은 막히게 두고, 모델은 clarification 으로 되묻는다.
+ */
+export type SaveMemoIntentEvaluation =
+  | { allowed: true; matched_pattern: string }
+  | { allowed: false; reason: "no_explicit_save_intent" };
+
+const SAVE_INTENT_PATTERNS: Array<{ id: string; re: RegExp }> = [
+  // 명령형 저장
+  {
+    id: "ko_memo_imperative",
+    re: /(메모해|메모로?\s*(남겨|저장|기록)|기록해|저장해|남겨\s*(줘|주세요|둬|둬\s*줘)|적어\s*(둬|줘|주세요)|써\s*(둬|줘|주세요))/,
+  },
+  // 짧은 동의 표현 (이전 proposal 에 대한 YES)
+  {
+    id: "ko_confirmation_short",
+    re: /^(응|네|예|그래|좋아|좋습니다|맞아|오케이|ok|okay|yes|yep|sure)\s*[.!~,]*\s*(저장|기록|메모|ㄱㄱ|해\s*줘|해\s*주세요)?$/i,
+  },
+  // 동의 + 저장 지시
+  {
+    id: "ko_confirmation_with_save",
+    re: /(그걸로|그대로|위\s*내용\s*(대로|으로))\s*(저장|메모|기록)/,
+  },
+  // 영어 명령형
+  {
+    id: "en_save_imperative",
+    re: /\b(save|store|record|remember|memo|note)\s+(this|that|it|the\s+above)\b/i,
+  },
+];
+
+export function evaluateSaveMemoIntent(
+  userMessage: string,
+): SaveMemoIntentEvaluation {
+  const msg = (userMessage ?? "").trim();
+  if (msg.length === 0) {
+    return { allowed: false, reason: "no_explicit_save_intent" };
+  }
+  for (const p of SAVE_INTENT_PATTERNS) {
+    if (p.re.test(msg)) {
+      return { allowed: true, matched_pattern: p.id };
+    }
+  }
+  return { allowed: false, reason: "no_explicit_save_intent" };
+}

@@ -57,7 +57,13 @@ export type RunAssistantOutput = {
 export async function runAssistant(
   input: RunAssistantInput,
 ): Promise<RunAssistantOutput> {
-  const { userMessage, ctx } = input;
+  const { userMessage } = input;
+  // tool executor 안에서 현재 턴의 사용자 메시지를 기반으로 저장 의도를 재검증하려면
+  // user_message 가 ctx 에 실려 있어야 한다. 호출자가 보내지 않았더라도 여기서 주입한다.
+  const ctx: AssistantRunContext = {
+    ...input.ctx,
+    user_message: input.ctx.user_message ?? userMessage,
+  };
   const maxIterations = resolveMaxIterations();
   const providerName = resolveProviderName();
 
