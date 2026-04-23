@@ -28,6 +28,7 @@ export type AuditEventType =
   | "memo.create.pending"
   | "memo.approval.executed"
   | "memo.approval.rejected"
+  | "memo.approval.blocked"
   | "memo.summarized"
   | "assistant.request.received"
   | "assistant.tool.invoked"

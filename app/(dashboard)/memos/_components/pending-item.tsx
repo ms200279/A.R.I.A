@@ -9,6 +9,7 @@ type LocalStatus =
   | { kind: "idle" }
   | { kind: "confirming" }
   | { kind: "rejecting" }
+  | { kind: "blocked"; reason: string }
   | { kind: "error"; message: string };
 
 export default function PendingItem({ item }: { item: SaveMemoPending }) {
@@ -25,19 +26,35 @@ export default function PendingItem({ item }: { item: SaveMemoPending }) {
     const res = await fetch(`/api/approvals/${item.id}/${path}`, {
       method: "POST",
     });
-    if (!res.ok) {
-      let reason = `HTTP ${res.status}`;
+
+    // HTTP 200 + body.status === "blocked" 는 정책적 차단. 오류가 아니므로 별도 처리.
+    if (res.ok) {
       try {
-        const body = (await res.json()) as { error?: string };
-        if (body?.error) reason = body.error;
+        const body = (await res.json()) as { status?: string; reason?: string };
+        if (body?.status === "blocked") {
+          setStatus({
+            kind: "blocked",
+            reason: body.reason ?? "blocked",
+          });
+          startTransition(() => router.refresh());
+          return;
+        }
       } catch {
-        /* keep default */
+        // 빈 응답이어도 성공으로 간주
       }
-      setStatus({ kind: "error", message: reason });
+      setStatus({ kind: "idle" });
+      startTransition(() => router.refresh());
       return;
     }
-    setStatus({ kind: "idle" });
-    startTransition(() => router.refresh());
+
+    let reason = `HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) reason = body.error;
+    } catch {
+      /* keep default */
+    }
+    setStatus({ kind: "error", message: reason });
   }
 
   return (
@@ -109,6 +126,12 @@ function LocalStatusLine({ status }: { status: LocalStatus }) {
       return <span className="text-xs opacity-60">승인 처리 중…</span>;
     case "rejecting":
       return <span className="text-xs opacity-60">거절 처리 중…</span>;
+    case "blocked":
+      return (
+        <span className="text-xs text-amber-600 dark:text-amber-400">
+          차단됨: {status.reason}
+        </span>
+      );
     case "error":
       return (
         <span className="text-xs text-red-600 dark:text-red-400">

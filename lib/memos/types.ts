@@ -31,6 +31,19 @@ export type ExecuteMemoResult =
       memo_id: string;
     }
   | {
+      /**
+       * payload 검증/정책 재검사 실패 등 "정책적으로 실행을 막은" 결과.
+       * pending_action 은 `blocked` 로 전이되며 동일 id 로 재시도해도 같은 결론.
+       * HTTP 4xx/5xx 가 아닌 200 + body 로 표현하는 것이 적절하다.
+       */
+      status: "blocked";
+      reason: string;
+    }
+  | {
+      /**
+       * 일시적/기술적 오류 (claim 실패, memo_insert_failed 등).
+       * 원칙적으로 재시도 가능하며 HTTP 5xx 로 표현한다.
+       */
       status: "error";
       reason: string;
     };
