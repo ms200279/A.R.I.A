@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Supabase 이메일 OTP / OAuth 흐름의 콜백 수신점.
  * - `?code=<...>` 를 받아 서버 쿠키 기반 세션으로 교환한다.
- * - 성공 시 `next` 쿼리 파라미터로 돌려보내거나 `/` 로 보낸다.
- * - 실패 시 `/error` 로 보낸다. (에러 페이지는 최소 골격)
+ * - 성공 시 `/callback/done?next=<...>` 로 넘겨, 클라이언트 측에서
+ *   원래 탭(로그인 요청을 시작한 탭)에 "완료" 신호를 쏘고 본 탭은 닫기를 시도한다.
+ * - 실패 시 `/error` 로 보낸다.
  *
  * 공급자별 세부(OAuth state 검증 등) 확장은 후속 단계에서 처리한다.
  */
@@ -28,5 +29,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  const doneUrl = new URL("/callback/done", origin);
+  doneUrl.searchParams.set("next", next);
+  return NextResponse.redirect(doneUrl);
 }
