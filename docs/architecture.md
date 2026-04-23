@@ -43,6 +43,7 @@
 - **supabase**: 서버/클라이언트/서비스 역할용 클라이언트 분리.
 
 ## 런타임 흐름 (예: 문서 요약)
+
 1. `POST /api/assistant` 에 사용자 요청 도착.
 2. Route Handler 가 세션 확인 → `lib/orchestrator.handle()` 호출.
 3. Orchestrator 가 "문서 요약" 인텐트 분류 → `lib/documents.summarize()`.
@@ -50,6 +51,7 @@
 5. LLM 호출 후 요약 반환. 쓰기 없음 → 로그만 남기고 종료.
 
 ## 런타임 흐름 (예: 캘린더 생성)
+
 1. `POST /api/assistant` → orchestrator → `calendar.propose()` → 초안 반환.
 2. 사용자가 UI에서 승인 → `POST /api/approvals/[id]/confirm`.
 3. Route Handler → `policies.evaluate()` 통과 → `calendar.createFromApproval()` 실행.
@@ -57,6 +59,7 @@
 5. `execution_log` 기록.
 
 ## 외부 의존
+
 - Supabase (DB/Auth/Storage)
 - Google (Gmail, Calendar) — OAuth, 최소 스코프 (TODO: 목록 확정)
 - 검색 API (TODO: 공급자 선정)
@@ -64,6 +67,7 @@
 - LLM 공급자 (TODO: 선정)
 
 ## TODO
+
 - [ ] 주요 시퀀스 다이어그램 추가
 - [ ] 배포 토폴로지(Vercel + Supabase) 도식
 - [ ] 에러 처리/재시도 전략
