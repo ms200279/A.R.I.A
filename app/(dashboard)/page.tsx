@@ -1,3 +1,6 @@
+import Link from "next/link";
+import type { Route } from "next";
+
 /**
  * 대시보드 홈 (URL: `/`).
  * 이번 P0 단계에서는 자리만 잡아 둔다. 후속 단계에서:
@@ -17,7 +20,16 @@ export default function DashboardHome() {
       </div>
 
       <ul className="grid gap-3 sm:grid-cols-2">
-        {["문서", "메모", "메일", "캘린더"].map((label) => (
+        <li className="rounded border border-black/10 p-4 text-sm dark:border-white/10">
+          <Link
+            href={"/memos" as Route}
+            className="font-medium underline-offset-2 hover:underline"
+          >
+            메모
+          </Link>{" "}
+          — 명시 저장 · 승인 후 기록 · 검색/요약
+        </li>
+        {["문서", "메일", "캘린더"].map((label) => (
           <li
             key={label}
             className="rounded border border-black/10 p-4 text-sm opacity-60 dark:border-white/10"

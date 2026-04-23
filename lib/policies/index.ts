@@ -24,3 +24,11 @@ export function evaluate(_action: AppAction, _context: { userId: string }): Eval
   //  4) 차단 시 lib/logging 에 policy_violation 기록 (side-effect)
   throw new Error("not_implemented: lib/policies.evaluate");
 }
+
+export {
+  evaluateMemoCreate,
+  MEMO_CONTENT_MAX,
+  type MemoBlockReason,
+  type MemoCreateEvaluation,
+  type MemoCreateIntent,
+} from "./memo";

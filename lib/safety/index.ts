@@ -45,3 +45,10 @@ export function wrapAsData(_chunks: SafeChunks): string {
   // TODO: LLM 에 데이터로만 해석하도록 강제하는 래퍼 포맷 반환
   throw new Error("not_implemented: lib/safety.wrapAsData");
 }
+
+export {
+  detectSensitiveContent,
+  hasSensitiveContent,
+  type SensitivityCategory,
+  type SensitivityMatch,
+} from "./sensitive";

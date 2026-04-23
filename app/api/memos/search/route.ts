@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { listMemos } from "@/lib/memos";
+import { searchMemos } from "@/lib/memos";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/memos
- *   본인 메모 목록. RLS 로 강제됨.
- *   query:
- *     limit?  number  (default 50, max 200)
- *     cursor? string  (ISO timestamp, 그보다 과거의 행 요청)
- *     project_key? string
- *
- * POST 엔드포인트는 /api/memos/create 로 분리했다. (명시 저장 경로의 단일 창구)
+ * GET /api/memos/search?q=...&limit=...&project_key=...
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -23,16 +16,15 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+  const q = url.searchParams.get("q") ?? "";
   const limitParam = url.searchParams.get("limit");
-  const cursor = url.searchParams.get("cursor");
   const projectKey = url.searchParams.get("project_key");
 
   const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-  const result = await listMemos({
+  const result = await searchMemos({
+    query: q,
     limit: Number.isFinite(limit) ? limit : undefined,
-    cursor: cursor ?? null,
     project_key: projectKey ?? null,
   });
-
   return NextResponse.json(result);
 }

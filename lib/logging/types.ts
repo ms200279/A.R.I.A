@@ -22,7 +22,13 @@ export type AuditEventType =
   | "auth.callback.succeeded"
   | "auth.callback.failed"
   | "auth.logout.succeeded"
-  | "auth.logout.failed";
+  | "auth.logout.failed"
+  | "memo.create.requested"
+  | "memo.create.blocked"
+  | "memo.create.pending"
+  | "memo.approval.executed"
+  | "memo.approval.rejected"
+  | "memo.summarized";
 
 export type ActorType = "user" | "anonymous" | "system" | "service";
 
