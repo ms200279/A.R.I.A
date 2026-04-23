@@ -16,7 +16,7 @@ function parseMode(v: string | null): SummarizeMode | undefined {
 
 /**
  * POST /api/memos/[id]/summarize
- * 본인 메모에만 동작.
+ * 본인 메모에만 동작. 요약 문장 생성은 `lib/summarizers`(Gemini + rule fallback)가 담당한다.
  *
  * - 기본 `mode=regenerate`: 항상 새 요약으로 `summary` 덮어쓰기.
  * - `mode=if_empty`: 이미 summary 가 있으면 갱신하지 않고 기존 행 반환.
