@@ -312,6 +312,148 @@ export async function logMemoSummarized(
   });
 }
 
+export type MemoReadSource = "api" | "rsc" | "assistant";
+
+export type MemoListReadParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: MemoReadSource;
+  result_count: number;
+  sort: "created_at" | "updated_at";
+  has_cursor: boolean;
+  project_key?: string | null;
+};
+
+/**
+ * GET 목록(또는 RSC)에서 메모를 조회했을 때. result_count 는 반환된 행 수. 원문 미포함.
+ */
+export async function logMemoListRead(params: MemoListReadParams): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.read.list",
+    result: "success",
+    module_name: "memos.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memos",
+    metadata: {
+      source: params.source,
+      result_count: params.result_count,
+      sort: params.sort,
+      has_cursor: params.has_cursor,
+      project_key: params.project_key ?? null,
+    },
+  });
+}
+
+export type MemoDetailReadParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: MemoReadSource;
+  memo_id: string;
+};
+
+export async function logMemoDetailRead(params: MemoDetailReadParams): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.read.detail",
+    result: "success",
+    module_name: "memos.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    metadata: { source: params.source },
+  });
+}
+
+export type MemoSearchedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: MemoReadSource;
+  result_count: number;
+  query_len: number;
+  project_key?: string | null;
+  tag?: string | null;
+};
+
+/**
+ * full-text 쿼리 원문은 남기지 않고 길이만.
+ */
+export async function logMemoSearched(params: MemoSearchedParams): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.searched",
+    result: "success",
+    module_name: "memos.search",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memos",
+    metadata: {
+      source: params.source,
+      result_count: params.result_count,
+      query_len: params.query_len,
+      project_key: params.project_key ?? null,
+      tag: params.tag ?? null,
+    },
+  });
+}
+
+export type MemoReadMissingParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  source: MemoReadSource;
+  memo_id: string;
+};
+
+/**
+ * 단건 조회가 빈 값으로 끝났을 때 (RLS/소유권/존재하지 않음 구분은 하지 않음).
+ * 무차별 본문 열람 시도에 대한 흔적용.
+ */
+export async function logMemoReadMissing(
+  params: MemoReadMissingParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.read.missing",
+    result: "failure",
+    module_name: "memos.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    error_code: "not_found",
+    metadata: { source: params.source },
+  });
+}
+
+export type MemoSummarizeSkippedParams = {
+  actor_id: string;
+  actor_email?: string | null;
+  memo_id: string;
+  reason: "if_empty_already_set";
+  strategy: string;
+};
+
+/**
+ * if_empty 모드에서 이미 summary 가 있어 요약을 생략한 경우. 별도 `memo.summarized` 는 남기지 않는다.
+ */
+export async function logMemoSummarizeSkipped(
+  params: MemoSummarizeSkippedParams,
+): Promise<void> {
+  await writeAuditLog({
+    event_type: "memo.summarize.skipped",
+    result: "success",
+    module_name: "memos.summarize",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "memo",
+    target_id: params.memo_id,
+    metadata: { reason: params.reason, strategy: params.strategy },
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Assistant helpers
 // ─────────────────────────────────────────────────────────────────────────────

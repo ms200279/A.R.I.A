@@ -51,11 +51,12 @@
 
 ### `/api/memos`
 
-- `GET  /api/memos` — 목록
-- `GET  /api/memos/[id]` — 단건
-- `POST /api/memos` — 생성 (사용자 명시 저장만)
-- `PATCH /api/memos/[id]` — 수정
-- **삭제 엔드포인트 없음** (정책상 비활성)
+- `GET  /api/memos` — 본인 `active` 메모 목록 (RLS). cursor 기반 페이징: `?limit=&cursor=&project_key=&sort=created_at|updated_at` (기본 `updated_at` 내림차순, cursor 는 해당 컬럼 ISO). 응답: `{ items, next_cursor, sort }`. `memo.read.list` 감사.
+- `GET  /api/memos/search` — `?q=&limit=&project_key=&tag=` (부분일치: title/content/summary/project_key, `tag`·`project_key` 는 정확 일치 필터·`tag` 우선). `memo.searched` (쿼리 **길이**만, 원문 미로그).
+- `GET  /api/memos/[id]` — 단건. 404 시 `memo.read.missing`. 성공 시 `memo.read.detail`.
+- `POST /api/memos/create` — pending 저장 요청 (명시 저장만, 기존과 동일).
+- `POST /api/memos/[id]/summarize` — `summary` 갱신. body/query `mode`: `regenerate`(기본) | `if_empty` (이미 있으면 `memo.summarize.skipped`). `memo.summarized`.
+- `PATCH/DELETE` — 없음
 
 ### `/api/mail`
 

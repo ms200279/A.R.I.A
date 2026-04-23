@@ -42,6 +42,8 @@ export type SearchMemosArgs = z.infer<typeof SearchMemosArgs>;
 export const GetRecentMemosArgs = z.object({
   limit: z.number().int().min(1).max(50).optional(),
   project_key: z.string().max(200).optional().nullable(),
+  /** 기본 `updated_at` (최근 수정 우선). */
+  sort: z.enum(["created_at", "updated_at"]).optional(),
 });
 export type GetRecentMemosArgs = z.infer<typeof GetRecentMemosArgs>;
 
@@ -92,14 +94,14 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
   {
     name: "search_memos",
     description:
-      "사용자의 저장된 메모를 제목/본문/프로젝트 키 기준으로 부분 일치 검색한다. 사용자가 '내 메모에서 X 찾아줘' 또는 과거 메모를 참조해야 할 때 호출한다.",
+      "사용자의 저장된 메모를 제목/본문/요약/프로젝트 키 기준으로 부분 일치 검색한다. 사용자가 '내 메모에서 X 찾아줘' 또는 과거 메모를 참조해야 할 때 호출한다.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
         query: {
           type: "string",
-          description: "검색어. 제목/본문/프로젝트 키 전반을 대상으로 한다.",
+          description: "검색어. 제목/본문/요약/프로젝트 키 전반을 대상으로 한다.",
         },
         limit: {
           type: "integer",
@@ -114,7 +116,7 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
   {
     name: "get_recent_memos",
     description:
-      "사용자의 최근 메모를 최신순으로 조회한다. 사용자가 '최근 뭐 적었지' 또는 '최근 메모 보여줘' 같은 맥락을 요청할 때 사용한다.",
+      "사용자의 최근 메모를 조회한다. 기본은 최근 수정일(updated_at) 기준. 사용자가 '최근 뭐 적었지' 또는 '최근 메모 보여줘' 같은 맥락을 요청할 때 사용한다.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -128,6 +130,12 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
         project_key: {
           type: ["string", "null"],
           description: "특정 프로젝트 키로 필터링. 없으면 null.",
+        },
+        sort: {
+          type: "string",
+          description:
+            "정렬·페이지 커서 기준 컬럼. 'updated_at'(기본) 또는 'created_at'.",
+          enum: ["created_at", "updated_at"],
         },
       },
       required: [],

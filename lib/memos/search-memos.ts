@@ -1,14 +1,29 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { logMemoSearched } from "@/lib/logging/audit-log";
 import type { Memo } from "@/types/memo";
 
+import { MEMO_ROW_SELECT } from "./memo-columns";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 
 export type SearchMemosOptions = {
   query: string;
   limit?: number;
+  /**
+   * `project_key` 열과 정확 일치(필터). UI/API 에서 "프로젝트" 를 좁힐 때.
+   */
   project_key?: string | null;
+  /**
+   * 스키마에 별도 `tag` 열이 없다. `project_key` 를 태그 용도로 쓰는 흐름과
+   * 동일하게 **정확 일치**로 필터한다. `q` 본문 검색과 AND 로 결합.
+   */
+  tag?: string | null;
+  audit?: {
+    actor_id: string;
+    actor_email?: string | null;
+    source: "api" | "rsc" | "assistant";
+  };
 };
 
 export type SearchMemosResult = {
@@ -17,11 +32,11 @@ export type SearchMemosResult = {
 };
 
 /**
- * 제목/본문/project_key 기준 최소 검색.
+ * 제목/본문/summary/project_key 기반 최소 검색.
  *
- * Supabase 의 `.or()` 는 comma-separated filter 를 받는다. 외부 입력을 안전하게
- * 넣기 위해 직접 이스케이프가 필요한 메타문자(`%`, `,`, `()`)는 모두 제거한다.
- * 전체 문서 검색 엔진이 필요해지면 이 모듈을 pg_trgm / tsvector 로 교체한다.
+ * Supabase `.or()` 는 comma-separated filter 를 받는다. 메타문자(`%`, `,`, `()`)는
+ * 제거해 PostgREST 파서/와일드카드 남용을 막는다. 고급 전문 검색은 `tsvector` 등으로
+ * 확장할 때 이 모듈을 대체한다.
  */
 export async function searchMemos(
   options: SearchMemosOptions,
@@ -41,32 +56,55 @@ export async function searchMemos(
 
   let builder = supabase
     .from("memos")
-    .select(
-      "id,user_id,title,content,summary,source_type,project_key,sensitivity_flag,status,created_at,updated_at",
-    )
+    .select(MEMO_ROW_SELECT)
     .eq("status", "active")
     .or(
       [
         `title.ilike.%${safe}%`,
         `content.ilike.%${safe}%`,
+        `summary.ilike.%${safe}%`,
         `project_key.ilike.%${safe}%`,
       ].join(","),
     )
-    .order("created_at", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(limit);
 
-  if (options.project_key) {
-    builder = builder.eq("project_key", options.project_key);
+  const keyFilter = options.tag?.trim() || options.project_key?.trim() || null;
+  if (keyFilter) {
+    builder = builder.eq("project_key", keyFilter);
   }
 
   const { data, error } = await builder;
   if (error || !data) {
+    if (options.audit) {
+      await logMemoSearched({
+        actor_id: options.audit.actor_id,
+        actor_email: options.audit.actor_email ?? null,
+        source: options.audit.source,
+        result_count: 0,
+        query_len: rawQuery.length,
+        project_key: options.project_key ?? null,
+        tag: options.tag ?? null,
+      });
+    }
     return { items: [], query: rawQuery };
   }
-  return { items: data as Memo[], query: rawQuery };
+
+  const items = data as Memo[];
+  if (options.audit) {
+    await logMemoSearched({
+      actor_id: options.audit.actor_id,
+      actor_email: options.audit.actor_email ?? null,
+      source: options.audit.source,
+      result_count: items.length,
+      query_len: rawQuery.length,
+      project_key: options.project_key ?? null,
+      tag: options.tag ?? null,
+    });
+  }
+  return { items, query: rawQuery };
 }
 
 function sanitizeForIlike(input: string): string {
-  // ilike wildcard, PostgREST or() 구분자, 괄호를 제거한다.
   return input.replace(/[%,()]/g, "").trim();
 }
