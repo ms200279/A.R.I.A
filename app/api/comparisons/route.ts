@@ -17,14 +17,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ id: string }> };
-
 /**
- * GET /api/documents/[id]/comparisons
- * Query: `limit`(기본 20, 상한 50), `cursor`(base64url 키셋), `sort`=`created_at_desc`|`created_at_asc`(기본 desc).
+ * GET /api/comparisons
+ * Query: `documentId`(선택 — 있으면 해당 문서 맥락), `limit`, `cursor`, `sort`.
+ * 전체 비교 이력(사용자 스코프) 또는 문서 기준 필터.
  */
-export async function GET(request: Request, { params }: Params) {
-  const { id: documentId } = await params;
+export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData.user) {
@@ -34,6 +32,8 @@ export async function GET(request: Request, { params }: Params) {
   const email = userData.user.email ?? null;
 
   const url = new URL(request.url);
+  const documentId = url.searchParams.get("documentId")?.trim() || null;
+
   const limitParsed = parseComparisonHistoryLimitParam(
     url.searchParams.get("limit"),
     DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
@@ -49,15 +49,17 @@ export async function GET(request: Request, { params }: Params) {
   const sort = parseComparisonHistoryListSort(url.searchParams.get("sort"));
   const cursorRaw = url.searchParams.get("cursor");
 
-  const { data: doc, error: docErr } = await supabase
-    .from("documents")
-    .select("id")
-    .eq("id", documentId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  if (documentId) {
+    const { data: doc, error: docErr } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", documentId)
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (docErr || !doc) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (docErr || !doc) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
   }
 
   try {
@@ -75,7 +77,7 @@ export async function GET(request: Request, { params }: Params) {
     void logComparisonHistoryListRead({
       actor_id: userId,
       actor_email: email,
-      context: "document",
+      context: documentId ? "document" : "global",
       context_document_id: documentId,
       result_count: result.data.items.length,
       has_more: result.data.pageInfo.hasMore,
@@ -83,7 +85,7 @@ export async function GET(request: Request, { params }: Params) {
     }).catch(() => {});
 
     return NextResponse.json({
-      document_id: documentId,
+      ...(documentId ? { document_id: documentId } : {}),
       items: result.data.items,
       pageInfo: result.data.pageInfo,
       sort: result.data.sort,

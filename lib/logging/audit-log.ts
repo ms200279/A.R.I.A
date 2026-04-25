@@ -1014,6 +1014,107 @@ export async function logDocumentReadSummariesFailed(
   });
 }
 
+export async function logComparisonHistoryListRead(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  context: "document" | "global";
+  context_document_id?: string | null;
+  result_count: number;
+  has_more: boolean;
+  sort: string;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.comparisons",
+    result: "success",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history_list",
+    metadata: {
+      context: params.context,
+      context_document_id: params.context_document_id ?? null,
+      result_count: params.result_count,
+      has_more: params.has_more,
+      sort: params.sort,
+    },
+  });
+}
+
+export async function logComparisonHistoryListReadFailed(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  error_code: string;
+  error_message?: string | null;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "document.read.comparisons_failed",
+    result: "failure",
+    module_name: "documents.read",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history_list",
+    error_code: params.error_code,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+  });
+}
+
+export async function logComparisonBookmarkAdded(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  comparison_id: string;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "comparison.bookmark.added",
+    result: "success",
+    module_name: "comparisons.bookmark",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history",
+    target_id: params.comparison_id,
+  });
+}
+
+export async function logComparisonBookmarkRemoved(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  comparison_id: string;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "comparison.bookmark.removed",
+    result: "success",
+    module_name: "comparisons.bookmark",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history",
+    target_id: params.comparison_id,
+  });
+}
+
+export async function logComparisonBookmarkFailed(params: {
+  actor_id: string;
+  actor_email?: string | null;
+  comparison_id: string;
+  error_code: string;
+  error_message?: string | null;
+}): Promise<void> {
+  await writeAuditLog({
+    event_type: "comparison.bookmark.failed",
+    result: "failure",
+    module_name: "comparisons.bookmark",
+    actor_type: "user",
+    actor_id: params.actor_id,
+    actor_email: params.actor_email ?? null,
+    target_type: "comparison_history",
+    target_id: params.comparison_id,
+    error_code: params.error_code,
+    error_message: params.error_message?.slice(0, 200) ?? null,
+  });
+}
+
 // ── document compare / analyze ───────────────────────────────────────────────
 
 export type DocumentCompareStartedParams = {

@@ -4,16 +4,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { sanitizeStoredSummaryForRead } from "@/lib/safety/document-text";
 import type {
+  DocumentLatestComparisonPublic,
   DocumentLatestSummaryPublic,
   DocumentSummaryReadItem,
   DocumentSummaryType,
 } from "@/types/document";
 
 import {
-  fetchLatestComparisonFromHistoryForDocument,
-  latestComparisonRowToReadItem,
-  pickNewerComparisonReadItem,
-} from "./comparison-history-read";
+  getLatestComparisonForDocument,
+  mapLatestComparisonPublicToReadItem,
+} from "./get-latest-comparison-for-document";
 
 type SummaryRowDb = {
   id: string;
@@ -70,7 +70,10 @@ async function fetchLatestOne(
 
 export type LatestSummaryReadTriplet = {
   summary: DocumentSummaryReadItem | null;
+  /** `document_summaries` 호환 read 조각(요약 API latest 번들). */
   comparison: DocumentSummaryReadItem | null;
+  /** 상세/동일 정책 DTO(있으면 `comparison`과 id·content·created_at 가 일치). */
+  comparison_public: DocumentLatestComparisonPublic | null;
   analysis: DocumentSummaryReadItem | null;
   /** 각 타입별 SELECT 실패 메시지(없으면 해당 타입은 null). */
   fetchErrors: string[];
@@ -85,23 +88,26 @@ export async function loadLatestSummaryReadTripletForUser(
   documentId: string,
   userId: string,
 ): Promise<LatestSummaryReadTriplet> {
-  const [rs, legComp, histRes, ra] = await Promise.all([
+  const [rs, compRes, ra] = await Promise.all([
     fetchLatestOne(supabase, documentId, userId, "summary"),
-    fetchLatestOne(supabase, documentId, userId, "comparison"),
-    fetchLatestComparisonFromHistoryForDocument(supabase, documentId, userId),
+    getLatestComparisonForDocument(supabase, documentId, userId),
     fetchLatestOne(supabase, documentId, userId, "analysis"),
   ]);
-  const fromHistory = histRes.row ? latestComparisonRowToReadItem(histRes.row) : null;
-  const comparison = pickNewerComparisonReadItem(fromHistory, legComp.item);
+  const comparison_public = compRes.latest;
+  const comparison = comparison_public
+    ? mapLatestComparisonPublicToReadItem(comparison_public)
+    : null;
   const fetchErrors = [
     rs.errorMessage,
-    legComp.errorMessage,
-    histRes.errorMessage,
+    compRes.errorMessages.length
+      ? compRes.errorMessages.join("; ")
+      : undefined,
     ra.errorMessage,
   ].filter((m): m is string => Boolean(m));
   return {
     summary: rs.item,
     comparison,
+    comparison_public,
     analysis: ra.item,
     fetchErrors,
   };

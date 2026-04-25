@@ -484,6 +484,7 @@ function projectDocumentListItemForModel(item: DocumentListItemPayload) {
     latest_summary_preview: item.latest_summary_preview,
     latest_comparison_exists: item.latest_comparison_exists,
     latest_comparison_preview: item.latest_comparison_preview,
+    latest_comparison_anchor_role: item.latest_comparison_anchor_role,
     latest_analysis_exists: item.latest_analysis_exists,
     latest_analysis_preview: item.latest_analysis_preview,
     can_summarize: item.can_summarize,

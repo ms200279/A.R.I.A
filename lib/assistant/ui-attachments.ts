@@ -66,9 +66,17 @@ export function collectAttachmentsFromGetDocumentDetailPayload(
 
   const lc = doc.latest_comparison;
   if (isRecord(lc) && typeof lc.id === "string" && typeof lc.content === "string") {
-    const contentPreview = comparisonContentPreview(lc.content);
+    const fromDto =
+      typeof lc.content_preview === "string" && lc.content_preview.trim().length > 0
+        ? clampPreview(lc.content_preview, PREVIEW_MAX)
+        : "";
+    const contentPreview = fromDto.length > 0 ? fromDto : comparisonContentPreview(lc.content);
     if (contentPreview.length > 0) {
       const parsed = tryParseCompareResult(lc.content);
+      const historyId =
+        typeof lc.comparison_id === "string" && lc.comparison_id.length > 0
+          ? lc.comparison_id
+          : null;
       out.push({
         kind: "document_latest_comparison_card",
         documentId,
@@ -76,7 +84,7 @@ export function collectAttachmentsFromGetDocumentDetailPayload(
         comparisonSummaryId: lc.id,
         contentPreview,
         createdAt: typeof lc.created_at === "string" ? lc.created_at : "",
-        comparisonHistoryId: null,
+        comparisonHistoryId: historyId,
         relatedDocumentIds: parsed?.compared_document_ids?.length
           ? parsed.compared_document_ids.slice(0, 6)
           : undefined,

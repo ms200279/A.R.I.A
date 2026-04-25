@@ -91,7 +91,7 @@ export async function getDocumentDetail(
   }
 
   const latest_summary = mapSummaryReadItemToLatestPublic(triplet.summary);
-  const latest_comparison = mapSummaryReadItemToLatestPublic(triplet.comparison);
+  const latest_comparison = triplet.comparison_public;
   const latest_analysis = mapSummaryReadItemToLatestPublic(triplet.analysis);
 
   const hasParsedText = Boolean((row.parsed_text ?? "").trim());

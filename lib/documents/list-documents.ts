@@ -13,10 +13,15 @@ import {
   evaluateDocumentCanSummarize,
 } from "@/lib/policies/document-detail";
 import { sanitizeStoredSummaryForRead } from "@/lib/safety/document-text";
-import type { Document, DocumentListItemPayload, DocumentSummaryType } from "@/types/document";
+import type {
+  Document,
+  DocumentLatestComparisonPublic,
+  DocumentListItemPayload,
+  DocumentSummaryType,
+} from "@/types/document";
 
-import { fetchLatestComparisonBatchForDocumentIds } from "./comparison-history-read";
 import { DOCUMENT_LIST_ROW_SELECT } from "./document-columns";
+import { getLatestComparisonForDocumentsBatch } from "./get-latest-comparison-for-document";
 
 export const DEFAULT_DOCUMENT_LIST_LIMIT = 30;
 export const MAX_DOCUMENT_LIST_LIMIT = 100;
@@ -84,15 +89,6 @@ function pickLatestSummariesByDocumentAndType(
     }
   }
   return out;
-}
-
-function pickNewerComparisonBatchRow(
-  a: SummaryBatchRow | undefined,
-  b: SummaryBatchRow | undefined,
-): SummaryBatchRow | undefined {
-  if (!a) return b;
-  if (!b) return a;
-  return a.updated_at >= b.updated_at ? a : b;
 }
 
 function previewFromStoredContent(content: string | undefined, exists: boolean): string | null {
@@ -169,19 +165,18 @@ export async function listDocuments(
 
   let chunkMap = new Map<string, number>();
   let summaryByDocAndType = new Map<string, Map<DocumentSummaryType, SummaryBatchRow>>();
-
-  let comparisonFromHistory = new Map<string, SummaryBatchRow>();
+  let compMap = new Map<string, DocumentLatestComparisonPublic | null>();
 
   if (ids.length > 0) {
-    const [{ data: chunkRows, error: chunkErr }, { data: summaryRows, error: sumErr }, histPack] =
+    const [{ data: chunkRows, error: chunkErr }, { data: summaryRows, error: sumErr }, batchComp] =
       await Promise.all([
         supabase.from("document_chunks").select("document_id").in("document_id", ids),
         supabase
           .from("document_summaries")
           .select("document_id,summary_type,content,updated_at")
-          .in("summary_type", ["summary", "comparison", "analysis"])
+          .in("summary_type", ["summary", "analysis"])
           .in("document_id", ids),
-        fetchLatestComparisonBatchForDocumentIds(supabase, options.scope_user_id, ids),
+        getLatestComparisonForDocumentsBatch(supabase, options.scope_user_id, ids),
       ]);
 
     if (chunkErr) {
@@ -214,43 +209,19 @@ export async function listDocuments(
       );
     }
 
-    if (histPack.errorMessage) {
-      if (options.audit) {
-        await logDocumentListReadFailed({
-          actor_id: options.audit.actor_id,
-          actor_email: options.audit.actor_email ?? null,
-          source: options.audit.source,
-          error_code: "comparison_history_batch_failed",
-          error_message: histPack.errorMessage,
-        });
-      }
-    } else {
-      for (const [docId, row] of histPack.map) {
-        comparisonFromHistory.set(docId, {
-          document_id: docId,
-          summary_type: "comparison",
-          content: row.content,
-          updated_at: row.created_at,
-        });
-      }
-    }
+    compMap = batchComp;
   }
 
   const items: DocumentListItemPayload[] = pageRows.map((row) => {
     const perType = summaryByDocAndType.get(row.id);
     const sum = perType?.get("summary");
-    const legComp = perType?.get("comparison");
-    const histComp = comparisonFromHistory.get(row.id);
-    const comp = pickNewerComparisonBatchRow(histComp, legComp);
     const ana = perType?.get("analysis");
+    const lc = compMap.get(row.id) ?? null;
     const latest_summary_exists = Boolean(sum);
-    const latest_comparison_exists = Boolean(comp);
+    const latest_comparison_exists = Boolean(lc);
     const latest_analysis_exists = Boolean(ana);
     const latest_summary_preview = previewFromStoredContent(sum?.content, latest_summary_exists);
-    const latest_comparison_preview = previewFromStoredContent(
-      comp?.content,
-      latest_comparison_exists,
-    );
+    const latest_comparison_preview = lc?.content_preview?.trim() ? lc.content_preview : null;
     const latest_analysis_preview = previewFromStoredContent(ana?.content, latest_analysis_exists);
 
     const chunkCount = chunkMap.get(row.id) ?? 0;
@@ -272,6 +243,7 @@ export async function listDocuments(
       latest_summary_preview,
       latest_comparison_exists,
       latest_comparison_preview,
+      latest_comparison_anchor_role: lc?.current_document_anchor_role ?? null,
       latest_analysis_exists,
       latest_analysis_preview,
       can_summarize: evaluateDocumentCanSummarize({

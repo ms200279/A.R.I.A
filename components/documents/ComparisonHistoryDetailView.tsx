@@ -1,6 +1,5 @@
-import Link from "next/link";
-import type { Route } from "next";
-
+import ComparisonDetailDocumentsPanel from "@/components/comparisons/ComparisonDetailDocumentsPanel";
+import ComparisonDetailToolbar from "@/components/comparisons/ComparisonDetailToolbar";
 import { comparisonAnchorRoleBadgeLabel } from "@/lib/documents/comparison-anchor-role";
 import type { ComparisonHistoryDetailPayload } from "@/types/document";
 
@@ -10,13 +9,23 @@ type Props = {
   data: ComparisonHistoryDetailPayload;
   /** 문서 상세에서 넘어온 맥락 문서 id — 목록에서 강조 */
   contextDocumentId?: string | null;
+  isBookmarked: boolean;
 };
 
-export default function ComparisonHistoryDetailView({ data, contextDocumentId }: Props) {
+export default function ComparisonHistoryDetailView({
+  data,
+  contextDocumentId,
+  isBookmarked,
+}: Props) {
   return (
     <div className="space-y-8">
-      <header className="space-y-2 border-b border-[var(--border-subtle)] pb-6">
+      <header className="space-y-4 border-b border-[var(--border-subtle)] pb-6">
         <p className="font-mono text-xs text-[var(--text-tertiary)]">{data.comparison_id}</p>
+        <ComparisonDetailToolbar
+          comparisonId={data.comparison_id}
+          fromDocumentId={contextDocumentId ?? null}
+          initialIsBookmarked={isBookmarked}
+        />
         <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
           <time dateTime={data.created_at}>생성 {formatComparisonWhen(data.created_at)}</time>
           {data.summary_id ? (
@@ -49,54 +58,10 @@ export default function ComparisonHistoryDetailView({ data, contextDocumentId }:
         ) : null}
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-medium text-[var(--text-primary)]">포함된 문서</h2>
-        <ul className="divide-y divide-[var(--border-subtle)] rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--bg-overlay)]">
-          {[...data.documents]
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .map((doc) => {
-              const highlighted = contextDocumentId && doc.id === contextDocumentId;
-              const roleBadge = comparisonAnchorRoleBadgeLabel(doc.anchor_role);
-              return (
-                <li
-                  key={doc.id}
-                  className={`flex flex-wrap items-start justify-between gap-3 px-4 py-3 ${
-                    highlighted ? "bg-[var(--accent-soft)]/30" : ""
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <Link
-                      href={`/documents/${doc.id}` as Route}
-                      className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]"
-                    >
-                      {doc.title?.trim() || doc.file_name || doc.id.slice(0, 8) + "…"}
-                    </Link>
-                    <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
-                      {doc.file_name ?? "—"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs">
-                    <span
-                      className={
-                        roleBadge.kind === "known" && roleBadge.role === "primary"
-                          ? "rounded bg-[var(--warning-soft)] px-2 py-0.5 text-[var(--warning)]"
-                          : roleBadge.kind === "known"
-                            ? "rounded bg-white/5 px-2 py-0.5 text-[var(--text-secondary)]"
-                            : "rounded bg-white/5 px-2 py-0.5 text-[var(--text-tertiary)]"
-                      }
-                    >
-                      {roleBadge.label}
-                    </span>
-                    <span className="text-[var(--text-tertiary)]">sort {doc.sort_order}</span>
-                    {highlighted ? (
-                      <span className="text-[var(--accent-strong)]">← 보고 있던 문서</span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-        </ul>
-      </section>
+      <ComparisonDetailDocumentsPanel
+        documents={data.documents}
+        contextDocumentId={contextDocumentId}
+      />
 
       <section className="space-y-3">
         <h2 className="text-base font-medium text-[var(--text-primary)]">비교 결과</h2>

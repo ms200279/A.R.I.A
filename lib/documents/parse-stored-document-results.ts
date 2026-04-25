@@ -29,6 +29,37 @@ export function tryParseCompareResult(content: string): DocumentCompareResultPay
   return null;
 }
 
+/** 목록/요약 DTO `content_preview` — `buildComparisonReadPreview` 기본 길이. */
+export const COMPARISON_READ_PREVIEW_MAX_CHARS = 160;
+
+function clampReadPreviewText(text: string, maxChars: number): string {
+  const t = text.trim();
+  if (t.length <= maxChars) return t;
+  return `${t.slice(0, Math.max(0, maxChars - 1))}…`;
+}
+
+/**
+ * 저장된 비교 본문(정제 후)에서 read-side 짧은 미리보기를 만든다.
+ * 구조화 JSON이면 주요 문단만, 아니면 원문을 자른다.
+ * 도메인 DTO·assistant UI가 동일 규칙을 쓴다.
+ */
+export function buildComparisonReadPreview(
+  sanitizedContent: string,
+  maxChars: number = COMPARISON_READ_PREVIEW_MAX_CHARS,
+): string {
+  const parsed = tryParseCompareResult(sanitizedContent);
+  if (parsed) {
+    const parts = [parsed.summary_of_differences, parsed.summary_of_common_points].filter(
+      (s) => s.trim().length > 0,
+    );
+    const joined = parts.join(" · ");
+    if (joined.trim().length > 0) {
+      return clampReadPreviewText(joined, maxChars);
+    }
+  }
+  return clampReadPreviewText(sanitizedContent, maxChars);
+}
+
 /**
  * 분석 결과 JSON (`analysis` 필수, `document_id` 권장).
  */

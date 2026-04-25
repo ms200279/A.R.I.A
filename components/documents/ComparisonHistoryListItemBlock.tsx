@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
-import { comparisonAnchorRoleBadgeLabel } from "@/lib/documents/comparison-anchor-role";
+import {
+  comparisonAnchorRoleBadgeLabel,
+  comparisonAnchorRoleUiTier,
+} from "@/lib/documents/comparison-anchor-role";
 import type { ComparisonHistoryListItemPayload } from "@/types/comparisons";
 
 import { formatComparisonWhen } from "./comparison-display-utils";
@@ -22,6 +25,7 @@ export default function ComparisonHistoryListItemBlock({
   extraLeadingMeta,
 }: Props) {
   const roleBadge = comparisonAnchorRoleBadgeLabel(item.current_document_anchor_role);
+  const roleTier = comparisonAnchorRoleUiTier(item.current_document_anchor_role);
   const textSize = variant === "card" ? "text-xs" : "text-sm";
 
   return (
@@ -36,11 +40,11 @@ export default function ComparisonHistoryListItemBlock({
         <span>·</span>
         <span>{item.document_count}개 문서</span>
         <span>·</span>
-        {roleBadge.kind === "known" && roleBadge.role === "primary" ? (
+        {roleTier === "primary" ? (
           <span className="rounded bg-[var(--warning-soft)]/80 px-1.5 py-0.5 text-[var(--warning)]">
             {roleBadge.label}
           </span>
-        ) : roleBadge.kind === "known" ? (
+        ) : roleTier === "supporting" ? (
           <span className="rounded bg-white/5 px-1.5 py-0.5 text-[var(--text-secondary)]">
             {roleBadge.label}
           </span>

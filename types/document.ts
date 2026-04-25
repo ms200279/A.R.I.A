@@ -3,6 +3,8 @@
  * DB 스키마의 snake_case 필드명을 그대로 유지한다.
  */
 
+import type { ComparisonAnchorRole } from "./comparisons";
+
 export type DocumentStatus = "active" | "processing" | "failed" | "archived";
 
 export type DocumentParsingStatus =
@@ -103,6 +105,25 @@ export type DocumentLatestSummaryPublic = {
   summary_type: DocumentSummaryType;
 };
 
+/**
+ * read-side `latest_comparison` (정책 A: 이 문서가 앵커/피어로 참여한 비교 히스토리∪
+ * 레거시 `document_summaries` 기준, `created_at`이 가장 늦은 1건).
+ * 상세/목록/assistant가 동일 helper에서 채운다. `id`는 공개 id(`summary_id` 우선, 없으면 history id / 레거시 행 id).
+ */
+export type DocumentLatestComparisonPublic = {
+  id: string;
+  content: string;
+  created_at: string;
+  summary_type: "comparison";
+  /** `comparison_histories.id`. 레거시-only 비교면 null. */
+  comparison_id: string | null;
+  current_document_anchor_role: ComparisonAnchorRole | null;
+  /** `document_id`가 `primary_document_id`와 같을 때 true; 레거시(행이 이 문서에만 매칭)면 true. */
+  is_primary_context: boolean;
+  related_documents_preview: string;
+  content_preview: string;
+};
+
 /** GET /api/documents/[id]/summaries 및 상세·목록 확장용 공통 조각(청크 본문 없음). */
 export type DocumentSummaryReadItem = {
   id: string;
@@ -148,9 +169,17 @@ export type DocumentListItemPayload = {
   latest_summary_exists: boolean;
   /** 요약이 있을 때만. 짧은 미리보기(원문 아님). */
   latest_summary_preview: string | null;
-  /** 이 문서 id가 비교 결과 저장 앵커인 경우 등. 짧은 미리보기. */
+  /**
+   * 정책 A: 이 문서가 참여한 최신 비교의 존재(히스토리·레거시).
+   * `latest_comparison_preview`·`content_preview`와 항상 동기.
+   */
   latest_comparison_exists: boolean;
   latest_comparison_preview: string | null;
+  /**
+   * 히스토리 링크가 없는 레거시-only 비교·role 누락 시 null.
+   * 목록 배지/필터용; 상세 `DocumentLatestComparisonPublic`과 동일 기준.
+   */
+  latest_comparison_anchor_role: ComparisonAnchorRole | null;
   latest_analysis_exists: boolean;
   latest_analysis_preview: string | null;
   /** 상세 API `can_summarize` 와 동일 판정(목록은 `parsed_text` 미로드 → 청크 수 기준). */
@@ -176,8 +205,7 @@ export type DocumentDetailPayload = {
   created_at: string;
   updated_at: string;
   latest_summary: DocumentLatestSummaryPublic | null;
-  /** `document_summaries.summary_type=comparison` 이 이 문서 id에 매달린 최신 행(비교 앵커 문서에만 존재할 수 있음). */
-  latest_comparison: DocumentLatestSummaryPublic | null;
+  latest_comparison: DocumentLatestComparisonPublic | null;
   latest_analysis: DocumentLatestSummaryPublic | null;
   chunk_count: number;
   can_summarize: boolean;
@@ -191,10 +219,17 @@ export type DocumentDetailPayload = {
 export type {
   AssistantComparisonDetailAttachment,
   ComparisonAnchorRole,
+  ComparisonDetailDocumentsFilterMode,
+  ComparisonDetailDocumentsSortMode,
   ComparisonDetailPayload,
   ComparisonHistoryCurrentContext,
+  ComparisonHistoryDetailApiResponse,
   ComparisonHistoryDetailPayload,
+  ComparisonHistoryListApiResponse,
   ComparisonHistoryListItemPayload,
+  ComparisonHistoryListPageInfo,
+  ComparisonHistoryListResult,
+  ComparisonHistoryListSort,
 } from "./comparisons";
 
 /** POST /api/documents/upload 성공(201). */
