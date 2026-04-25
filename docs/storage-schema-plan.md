@@ -73,6 +73,14 @@
 - `documents/` — 원본 파일. 소유자별 경로 격리.
 - (필요 시) `exports/` — 사용자 내보내기 결과.
 
+### `comparison_history_documents.anchor_role`
+
+- `text` + check `in ('primary','peer','secondary')`. 앱 DTO `ComparisonAnchorRole`·`lib/documents/comparison-anchor-role` 와 맞출 것; 비정규 값은 read-side에서 `null`+개발 경고.
+
+### 비교 북마크 (내부 재참조)
+
+- `comparison_bookmarks` — `user_id`, `comparison_id` (FK `comparison_histories`, ON DELETE CASCADE), 선택 `label`, `created_at`, `UNIQUE(user_id, comparison_id)`. RLS: 본인 행만. 외부 공개 공유·guest 토큰과 무관.
+
 ## 금지
 
 - 하나의 테이블에 세션 메시지와 메모를 함께 넣는 설계.

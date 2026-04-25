@@ -21,6 +21,10 @@ import {
   loadLatestSummaryReadOneForUser,
   loadLatestSummaryReadTripletForUser,
 } from "./document-latest-summaries-load";
+import {
+  getLatestComparisonForDocument,
+  mapLatestComparisonPublicToReadItem,
+} from "./get-latest-comparison-for-document";
 
 export type ListDocumentSummariesContext = {
   user_id: string;
@@ -158,7 +162,17 @@ export async function listDocumentSummaries(
     }
 
     const st = options.type as DocumentSummaryType;
-    const one = await loadLatestSummaryReadOneForUser(supabase, documentId, ctx.user_id, st);
+    let one: DocumentSummaryReadItem | null = null;
+    if (st === "comparison") {
+      const { latest: comp } = await getLatestComparisonForDocument(
+        supabase,
+        documentId,
+        ctx.user_id,
+      );
+      one = comp ? mapLatestComparisonPublicToReadItem(comp) : null;
+    } else {
+      one = await loadLatestSummaryReadOneForUser(supabase, documentId, ctx.user_id, st);
+    }
     const items = one ? [one] : [];
     let latest: DocumentSummariesLatestBundle | undefined;
     if (one) {

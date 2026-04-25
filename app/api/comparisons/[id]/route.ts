@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isComparisonBookmarked } from "@/lib/comparisons/comparison-bookmarks";
 import { getComparisonHistoryDetail } from "@/lib/documents/get-comparison-history";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,18 +21,24 @@ export async function GET(request: Request, { params }: Params) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const result = await getComparisonHistoryDetail(
-    supabase,
-    comparisonId,
-    {
-      user_id: userData.user.id,
-    },
-    { context_document_id: from },
-  );
+  const [result, bookmarked] = await Promise.all([
+    getComparisonHistoryDetail(
+      supabase,
+      comparisonId,
+      {
+        user_id: userData.user.id,
+      },
+      { context_document_id: from },
+    ),
+    isComparisonBookmarked(supabase, userData.user.id, comparisonId),
+  ]);
 
   if (!result.ok) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  return NextResponse.json(result.data);
+  return NextResponse.json({
+    ...result.data,
+    is_bookmarked: bookmarked,
+  });
 }

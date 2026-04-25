@@ -6,6 +6,7 @@ import {
   logDocumentCompareHistoryFailed,
   logDocumentCompareHistorySaved,
 } from "@/lib/logging/audit-log";
+import type { ComparisonAnchorRole } from "@/types/comparisons";
 
 export type PersistComparisonHistoryArgs = {
   service: SupabaseClient;
@@ -72,7 +73,7 @@ export async function persistComparisonHistoryWithAnchors(
     comparison_history_id: historyId,
     user_id: userId,
     document_id: documentId,
-    anchor_role: (i === 0 ? "primary" : "peer") as "primary" | "peer",
+    anchor_role: (i === 0 ? "primary" : "peer") as ComparisonAnchorRole,
     sort_order: i,
   }));
 

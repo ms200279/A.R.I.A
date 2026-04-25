@@ -9,7 +9,10 @@ import DocumentMetaPanel from "@/components/documents/DocumentMetaPanel";
 import DocumentComparisonHistorySection from "@/components/documents/DocumentComparisonHistorySection";
 import DocumentSummaryCard from "@/components/documents/DocumentSummaryCard";
 import { getDocumentDetail } from "@/lib/documents/get-document";
-import { listDocumentComparisons } from "@/lib/documents/list-document-comparisons";
+import {
+  DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
+  listComparisonHistoriesPage,
+} from "@/lib/documents/list-document-comparisons";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentMetaPanelModel } from "@/types/document-ui";
 
@@ -40,9 +43,15 @@ export default async function DocumentDetailPage({ params }: PageProps) {
 
   const d = result.document;
 
-  const comparisonHistoryItems = await listDocumentComparisons(supabase, id, {
-    user_id: user.id,
+  const comparisonList = await listComparisonHistoriesPage(supabase, {
+    userId: user.id,
+    contextDocumentId: id,
+    limit: DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
+    cursor: null,
+    sort: "created_at_desc",
   });
+  const comparisonHistoryPayload =
+    comparisonList.ok ? comparisonList.data : { items: [], pageInfo: { nextCursor: null, hasMore: false }, sort: "created_at_desc" as const };
 
   const meta: DocumentMetaPanelModel = {
     title: d.title,
@@ -84,7 +93,11 @@ export default async function DocumentDetailPage({ params }: PageProps) {
 
         <DocumentComparisonCard latest={d.latest_comparison} />
 
-        <DocumentComparisonHistorySection documentId={d.id} items={comparisonHistoryItems} />
+        <DocumentComparisonHistorySection
+          documentId={d.id}
+          items={comparisonHistoryPayload.items}
+          pageInfo={comparisonHistoryPayload.pageInfo}
+        />
 
         <DocumentAnalysisCard latest={d.latest_analysis} />
       </section>

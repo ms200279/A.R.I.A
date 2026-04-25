@@ -1,14 +1,21 @@
-import type { ComparisonHistoryListItemPayload } from "@/types/document";
+import type {
+  ComparisonHistoryListItemPayload,
+  ComparisonHistoryListPageInfo,
+} from "@/types/document";
 
-import DocumentComparisonHistoryItem from "./DocumentComparisonHistoryItem";
+import ComparisonHistoryLoadMore from "./ComparisonHistoryLoadMore";
 import DocumentEmptyState from "./DocumentEmptyState";
 
 type Props = {
   documentId: string;
   items: ComparisonHistoryListItemPayload[];
+  pageInfo: ComparisonHistoryListPageInfo;
 };
 
-export default function DocumentComparisonHistorySection({ documentId, items }: Props) {
+/**
+ * 비교 이력: 첫 페이지는 서버에서 채우고, `hasMore` 이면 클라이언트에서 커서 로드.
+ */
+export default function DocumentComparisonHistorySection({ documentId, items, pageInfo }: Props) {
   return (
     <section className="space-y-3">
       <h2 className="text-base font-medium text-[var(--text-primary)]">
@@ -20,15 +27,11 @@ export default function DocumentComparisonHistorySection({ documentId, items }: 
           description="문서를 둘 이상 선택해 비교를 실행하면, 이 문서가 참여한 기록이 여기에 쌓입니다."
         />
       ) : (
-        <ul className="space-y-3">
-          {items.map((item) => (
-            <DocumentComparisonHistoryItem
-              key={item.comparison_id}
-              item={item}
-              contextDocumentId={documentId}
-            />
-          ))}
-        </ul>
+        <ComparisonHistoryLoadMore
+          documentId={documentId}
+          initialItems={items}
+          initialPageInfo={pageInfo}
+        />
       )}
     </section>
   );

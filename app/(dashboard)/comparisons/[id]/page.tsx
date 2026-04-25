@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import ComparisonHistoryDetailView from "@/components/documents/ComparisonHistoryDetailView";
+import { isComparisonBookmarked } from "@/lib/comparisons/comparison-bookmarks";
 import { getComparisonHistoryDetail } from "@/lib/documents/get-comparison-history";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,12 +28,15 @@ export default async function ComparisonDetailPage({ params, searchParams }: Pag
     notFound();
   }
 
-  const result = await getComparisonHistoryDetail(
-    supabase,
-    id,
-    { user_id: user.id },
-    { context_document_id: contextDocumentId },
-  );
+  const [result, isBookmarked] = await Promise.all([
+    getComparisonHistoryDetail(
+      supabase,
+      id,
+      { user_id: user.id },
+      { context_document_id: contextDocumentId },
+    ),
+    isComparisonBookmarked(supabase, user.id, id),
+  ]);
 
   if (!result.ok) {
     notFound();
@@ -58,7 +62,11 @@ export default async function ComparisonDetailPage({ params, searchParams }: Pag
           ) : null}
         </div>
 
-        <ComparisonHistoryDetailView data={result.data} contextDocumentId={contextDocumentId} />
+        <ComparisonHistoryDetailView
+          data={result.data}
+          contextDocumentId={contextDocumentId}
+          isBookmarked={isBookmarked}
+        />
       </section>
     </div>
   );

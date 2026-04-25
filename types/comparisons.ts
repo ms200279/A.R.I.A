@@ -4,16 +4,34 @@
  */
 
 /**
- * DB check 제약 + 향후 마이그레이션 시 union 확장(예: secondary).
- * `lib/documents/comparison-anchor-role` 의 정규화로 알 수 없는 값은 null 로 매핑.
+ * DB `comparison_history_documents.anchor_role` check( primary | peer | secondary ).
+ * `lib/documents/comparison-anchor-role` 정규화: 비정규·레거시는 null + dev 전용 경고.
  */
-export type ComparisonAnchorRole = "primary" | "peer";
+export type ComparisonAnchorRole = "primary" | "peer" | "secondary";
 
 export type ComparisonHistoryCurrentContext = {
   document_id: string;
   anchor_role: ComparisonAnchorRole | null;
   sort_order: number | null;
 };
+
+/**
+ * 비교 상세「포함 문서」read-side 정렬/필터( DTO 는 그대로, 화면만 가공).
+ * @see lib/documents/comparison-detail-documents-view
+ */
+export type ComparisonDetailDocumentsSortMode =
+  /** sort_order asc → tie-breaker 제목 */
+  | "sort_order_default"
+  | "title_asc"
+  | "title_desc"
+  | "role_priority";
+
+export type ComparisonDetailDocumentsFilterMode =
+  | "all"
+  | "primary"
+  | "peer"
+  | "secondary"
+  | "unknown";
 
 /** GET /api/comparisons/[id] (및 RSC 상세) 본문. */
 export type ComparisonHistoryDetailPayload = {
@@ -35,6 +53,11 @@ export type ComparisonHistoryDetailPayload = {
   current_context?: ComparisonHistoryCurrentContext;
 };
 
+/** `GET /api/comparisons/[id]` JSON — 상세 DTO + 북마크 여부. */
+export type ComparisonHistoryDetailApiResponse = ComparisonHistoryDetailPayload & {
+  is_bookmarked: boolean;
+};
+
 /** `ComparisonHistoryDetailPayload` 와 동일(짧은 별칭). */
 export type ComparisonDetailPayload = ComparisonHistoryDetailPayload;
 
@@ -49,6 +72,31 @@ export type ComparisonHistoryListItemPayload = {
   content_preview: string;
   current_document_anchor_role: ComparisonAnchorRole | null;
   current_document_sort_order: number | null;
+};
+
+/**
+ * 비교 히스토리 목록 read-side. `ORDER BY created_at, id` 와 키셋 커서의 정렬 축.
+ * (추가 정렬/anchor sort는 후속; TODO: 이 union 에만 키셋이 유효)
+ */
+export type ComparisonHistoryListSort = "created_at_desc" | "created_at_asc";
+
+export type ComparisonHistoryListPageInfo = {
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type ComparisonHistoryListResult = {
+  items: ComparisonHistoryListItemPayload[];
+  pageInfo: ComparisonHistoryListPageInfo;
+  sort: ComparisonHistoryListSort;
+};
+
+/** `GET /api/documents/.../comparisons` · `GET /api/comparisons` 공통 응답(확장). */
+export type ComparisonHistoryListApiResponse = {
+  document_id?: string;
+  items: ComparisonHistoryListItemPayload[];
+  pageInfo: ComparisonHistoryListPageInfo;
+  sort: ComparisonHistoryListSort;
 };
 
 /**

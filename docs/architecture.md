@@ -40,6 +40,7 @@
 - **policies**: 액션 등급을 판정하고, 승인 필요 여부를 돌려준다. 실제 승인 UI는 app에서 담당.
 - **logging**: 감사 로그, 정책 위반 로그, 실행 로그. 원문 대신 포인터/요약 저장.
 - **documents/memos/mail/calendar**: 도메인 로직. Supabase / integrations 를 통해 I/O.
+- **비교 앵커 역할(`ComparisonAnchorRole`)**: `lib/documents/comparison-anchor-role` 에서 정규화·라벨·UI 티어 단일화; DB check 는 `primary`·`peer`·`secondary`(확장 시 마이그레이션과 타입을 함께 갱신).
 - **documents.summarize**: `document_chunks`·`parsed_text` 로 입력을 구성하고 비신뢰 전처리 후 `runSummarizerWithFallback`( `ResourceKind.document` )로 요약; `document_summaries` 에 UPSERT.
 - **integrations**: 외부 API 어댑터. 토큰 관리, 레이트 리밋, 에러 매핑.
 - **summarizers**: `ResourceKind`(memo \| document \| mail) 기반 공통 계약(`SummarizerInput`/`SummarizerOutput`, `SummarizerAdapter`). `runSummarizerWithFallback` 가 `lib/safety/summarize-provider-gate` 로 외부 LLM 호출 전 게이트를 통과시킨 뒤, `SUMMARIZER_PROVIDER`·키에 따라 Gemini 또는 `rule_based_v1` 을 선택한다. 긴 본문은 `MAX_USER_CONTENT_CHARS` 기준으로 청크 요약 후 합성(Gemini 경로). Gemini 실패 시 rule 로 복구.

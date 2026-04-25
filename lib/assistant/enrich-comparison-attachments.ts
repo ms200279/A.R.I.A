@@ -38,8 +38,12 @@ export async function enrichDocumentDetailAttachmentsWithComparisonHistory(
 
     if (!list.length) return existing;
 
+    const byHistory =
+      typeof lc.comparison_id === "string" && lc.comparison_id
+        ? list.find((i) => i.comparison_id === lc.comparison_id)
+        : null;
     const bySummary = list.find((i) => i.summary_id === lc.id) ?? null;
-    const item = bySummary ?? list[0] ?? null;
+    const item = byHistory ?? bySummary ?? list[0] ?? null;
     if (!item) return existing;
 
     const next: AssistantMessageAttachment = {
