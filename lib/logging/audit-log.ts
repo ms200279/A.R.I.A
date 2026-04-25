@@ -1022,6 +1022,7 @@ export async function logComparisonHistoryListRead(params: {
   result_count: number;
   has_more: boolean;
   sort: string;
+  role_filter?: string;
 }): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.comparisons",
@@ -1037,6 +1038,7 @@ export async function logComparisonHistoryListRead(params: {
       result_count: params.result_count,
       has_more: params.has_more,
       sort: params.sort,
+      role_filter: params.role_filter ?? "all",
     },
   });
 }

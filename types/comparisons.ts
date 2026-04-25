@@ -33,6 +33,12 @@ export type ComparisonDetailDocumentsFilterMode =
   | "secondary"
   | "unknown";
 
+/**
+ * 비교 히스토리 목록의 `current_document_anchor_role` 필터( `ComparisonDetailDocumentsFilterMode` 와 동일·DTO 필드는 유지).
+ * 문서 맥락이 없는 전역 목록에서는 `all`만 적용된다.
+ */
+export type ComparisonHistoryListRoleFilter = ComparisonDetailDocumentsFilterMode;
+
 /** GET /api/comparisons/[id] (및 RSC 상세) 본문. */
 export type ComparisonHistoryDetailPayload = {
   comparison_id: string;
@@ -89,6 +95,8 @@ export type ComparisonHistoryListResult = {
   items: ComparisonHistoryListItemPayload[];
   pageInfo: ComparisonHistoryListPageInfo;
   sort: ComparisonHistoryListSort;
+  /** 응답에 실제로 적용된 값( 맥락 없으면 `all` ). */
+  roleFilter: ComparisonHistoryListRoleFilter;
 };
 
 /** `GET /api/documents/.../comparisons` · `GET /api/comparisons` 공통 응답(확장). */
@@ -97,6 +105,7 @@ export type ComparisonHistoryListApiResponse = {
   items: ComparisonHistoryListItemPayload[];
   pageInfo: ComparisonHistoryListPageInfo;
   sort: ComparisonHistoryListSort;
+  role_filter: ComparisonHistoryListRoleFilter;
 };
 
 /**

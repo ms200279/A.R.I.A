@@ -221,6 +221,7 @@ export type {
   ComparisonAnchorRole,
   ComparisonDetailDocumentsFilterMode,
   ComparisonDetailDocumentsSortMode,
+  ComparisonHistoryListRoleFilter,
   ComparisonDetailPayload,
   ComparisonHistoryCurrentContext,
   ComparisonHistoryDetailApiResponse,
