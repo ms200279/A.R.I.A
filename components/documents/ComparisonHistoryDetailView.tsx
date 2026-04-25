@@ -1,5 +1,5 @@
+import ComparisonActionBar from "@/components/comparisons/ComparisonActionBar";
 import ComparisonDetailDocumentsPanel from "@/components/comparisons/ComparisonDetailDocumentsPanel";
-import ComparisonDetailToolbar from "@/components/comparisons/ComparisonDetailToolbar";
 import { comparisonAnchorRoleBadgeLabel } from "@/lib/documents/comparison-anchor-role";
 import type { ComparisonHistoryDetailPayload } from "@/types/document";
 
@@ -21,9 +21,10 @@ export default function ComparisonHistoryDetailView({
     <div className="space-y-8">
       <header className="space-y-4 border-b border-[var(--border-subtle)] pb-6">
         <p className="font-mono text-xs text-[var(--text-tertiary)]">{data.comparison_id}</p>
-        <ComparisonDetailToolbar
+        <ComparisonActionBar
           comparisonId={data.comparison_id}
           fromDocumentId={contextDocumentId ?? null}
+          primaryDocumentId={data.primary_document_id}
           initialIsBookmarked={isBookmarked}
         />
         <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">

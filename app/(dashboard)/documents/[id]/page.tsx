@@ -49,9 +49,16 @@ export default async function DocumentDetailPage({ params }: PageProps) {
     limit: DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
     cursor: null,
     sort: "created_at_desc",
+    roleFilter: "all",
   });
-  const comparisonHistoryPayload =
-    comparisonList.ok ? comparisonList.data : { items: [], pageInfo: { nextCursor: null, hasMore: false }, sort: "created_at_desc" as const };
+  const comparisonHistoryPayload = comparisonList.ok
+    ? comparisonList.data
+    : {
+        items: [],
+        pageInfo: { nextCursor: null, hasMore: false },
+        sort: "created_at_desc" as const,
+        roleFilter: "all" as const,
+      };
 
   const meta: DocumentMetaPanelModel = {
     title: d.title,
@@ -97,6 +104,8 @@ export default async function DocumentDetailPage({ params }: PageProps) {
           documentId={d.id}
           items={comparisonHistoryPayload.items}
           pageInfo={comparisonHistoryPayload.pageInfo}
+          initialSort={comparisonHistoryPayload.sort}
+          initialRoleFilter={comparisonHistoryPayload.roleFilter}
         />
 
         <DocumentAnalysisCard latest={d.latest_analysis} />

@@ -5,6 +5,7 @@ import {
   MAX_DOCUMENT_COMPARISONS_LIMIT,
   DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
 } from "@/lib/documents/list-document-comparisons";
+import { parseComparisonHistoryListRoleFilter } from "@/lib/documents/comparison-history-list-query-params";
 import {
   parseComparisonHistoryLimitParam,
   parseComparisonHistoryListSort,
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
   }
 
   const sort = parseComparisonHistoryListSort(url.searchParams.get("sort"));
+  const roleFilter = parseComparisonHistoryListRoleFilter(url.searchParams.get("role_filter"));
   const cursorRaw = url.searchParams.get("cursor");
 
   if (documentId) {
@@ -63,12 +65,15 @@ export async function GET(request: Request) {
   }
 
   try {
+    const effectiveRoleFilter = documentId ? roleFilter : "all";
+
     const result = await listComparisonHistoriesPage(supabase, {
       userId,
       contextDocumentId: documentId,
       limit: limitParsed,
       cursor: cursorRaw,
       sort,
+      roleFilter: effectiveRoleFilter,
     });
     if (!result.ok) {
       return NextResponse.json({ error: "invalid_cursor" }, { status: 400 });
@@ -82,6 +87,7 @@ export async function GET(request: Request) {
       result_count: result.data.items.length,
       has_more: result.data.pageInfo.hasMore,
       sort,
+      role_filter: result.data.roleFilter,
     }).catch(() => {});
 
     return NextResponse.json({
@@ -89,6 +95,7 @@ export async function GET(request: Request) {
       items: result.data.items,
       pageInfo: result.data.pageInfo,
       sort: result.data.sort,
+      role_filter: result.data.roleFilter,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

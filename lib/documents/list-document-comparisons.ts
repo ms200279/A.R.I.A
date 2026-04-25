@@ -6,12 +6,13 @@ import { sanitizeStoredSummaryForRead } from "@/lib/safety/document-text";
 import type {
   ComparisonHistoryListItemPayload,
   ComparisonHistoryListResult,
+  ComparisonHistoryListRoleFilter,
   ComparisonHistoryListSort,
 } from "@/types/comparisons";
 
 import {
   buildKeysetOrFilter,
-  cursorMatchesRequestSort,
+  cursorMatchesRequestListState,
   decodeComparisonListCursor,
   encodeComparisonListCursor,
 } from "./comparison-list-cursor";
@@ -21,6 +22,23 @@ import { normalizeEmbeddedDocumentMeta } from "./supabase-embed-doc";
 const CONTENT_PREVIEW_MAX = 160;
 export const DEFAULT_DOCUMENT_COMPARISONS_LIMIT = 20;
 export const MAX_DOCUMENT_COMPARISONS_LIMIT = 50;
+
+/**
+ * `comparison_history_documents!inner` 이미 `document_id`로 걸려 있을 때, 앵커 role 로 추가 필터.
+ * PostgREST 체인 타입( select 이후 `filter` / `is` )이 버전마다 달라 `any` 로 단일화.
+ */
+function applyContextAnchorRoleFilterToComparisonHistoryQuery(
+  q: any,
+  roleFilter: ComparisonHistoryListRoleFilter,
+): any {
+  if (roleFilter === "all") {
+    return q;
+  }
+  if (roleFilter === "unknown") {
+    return q.is("comparison_history_documents.anchor_role", null);
+  }
+  return q.filter("comparison_history_documents.anchor_role", "eq", roleFilter);
+}
 
 export type ListDocumentComparisonsContext = {
   user_id: string;
@@ -37,6 +55,11 @@ export type ListComparisonHistoriesPageInput = {
   /** base64url(JSON). 없으면 첫 페이지. */
   cursor: string | null;
   sort: ComparisonHistoryListSort;
+  /**
+   * 문서 맥락에서 `comparison_history_documents.anchor_role` (정규화·null=unknown) 필터.
+   * `contextDocumentId` 가 없으면 항상 `all` 만 적용된다.
+   */
+  roleFilter: ComparisonHistoryListRoleFilter;
 };
 
 export type ListComparisonHistoriesPageOutput =
@@ -64,6 +87,9 @@ export async function listComparisonHistoriesPage(
 ): Promise<ListComparisonHistoriesPageOutput> {
   const limit = Math.min(Math.max(1, input.limit), MAX_DOCUMENT_COMPARISONS_LIMIT);
   const sort: ComparisonHistoryListSort = input.sort;
+  const roleFilter: ComparisonHistoryListRoleFilter = input.contextDocumentId
+    ? input.roleFilter
+    : "all";
   const ascending = sort === "created_at_asc";
   const keysetOrder: "asc" | "desc" = ascending ? "asc" : "desc";
 
@@ -73,7 +99,7 @@ export async function listComparisonHistoriesPage(
     if (!d) {
       return { ok: false, error: "invalid_cursor" };
     }
-    if (!cursorMatchesRequestSort(d, sort)) {
+    if (!cursorMatchesRequestListState(d, sort, roleFilter)) {
       return { ok: false, error: "invalid_cursor" };
     }
     cur = { created_at: d.created_at, id: d.id };
@@ -89,6 +115,7 @@ export async function listComparisonHistoriesPage(
 
   if (input.contextDocumentId) {
     q = q.filter("comparison_history_documents.document_id", "eq", input.contextDocumentId);
+    q = applyContextAnchorRoleFilterToComparisonHistoryQuery(q, roleFilter);
   }
 
   if (cur) {
@@ -120,6 +147,7 @@ export async function listComparisonHistoriesPage(
         items: [],
         pageInfo: { nextCursor: null, hasMore: false },
         sort,
+        roleFilter,
       },
     };
   }
@@ -200,6 +228,7 @@ export async function listComparisonHistoriesPage(
           created_at: last.created_at,
           id: last.id,
           sort,
+          roleFilter,
         })
       : null;
 
@@ -209,6 +238,7 @@ export async function listComparisonHistoriesPage(
       items,
       pageInfo: { nextCursor, hasMore },
       sort,
+      roleFilter,
     },
   };
 }
@@ -252,6 +282,7 @@ export async function listDocumentComparisons(
     limit: options?.limit ?? DEFAULT_DOCUMENT_COMPARISONS_LIMIT,
     cursor: null,
     sort: "created_at_desc",
+    roleFilter: "all",
   });
   if (!r.ok) {
     return [];

@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { ComparisonHistoryListSort } from "@/types/comparisons";
+import { parseComparisonHistoryListRoleFilter } from "@/lib/documents/comparison-history-list-query-params";
+import type { ComparisonHistoryListRoleFilter, ComparisonHistoryListSort } from "@/types/comparisons";
 
 /**
  * 키셋: `ORDER BY created_at (asc|desc), id (asc|desc)` 이 동일할 때
@@ -15,6 +16,11 @@ export type ComparisonListCursorPayload = {
   created_at: string;
   id: string;
   sort: ComparisonHistoryListSort;
+  /**
+   * 생략 시 `all` (이전에 발급된 커서 호환).
+   * @see listComparisonHistoriesPage — 문서 맥락 `role_filter` 와 일치해야 다음 페이지.
+   */
+  roleFilter?: ComparisonHistoryListRoleFilter;
 };
 
 export function encodeComparisonListCursor(payload: ComparisonListCursorPayload): string {
@@ -55,11 +61,16 @@ export function decodeComparisonListCursor(raw: string | null | undefined): Comp
     if (r.sort !== "created_at_asc" && r.sort !== "created_at_desc") {
       return null;
     }
+    const roleFromCursor = (r as Record<string, unknown>).roleFilter;
+    const roleFilter = parseComparisonHistoryListRoleFilter(
+      typeof roleFromCursor === "string" ? roleFromCursor : null,
+    );
     return {
       v: CURSOR_V,
       created_at: r.created_at,
       id: r.id,
       sort: r.sort,
+      roleFilter,
     };
   } catch {
     return null;
@@ -74,6 +85,18 @@ export function cursorMatchesRequestSort(
   requestSort: ComparisonHistoryListSort,
 ): boolean {
   return c.sort === requestSort;
+}
+
+/**
+ * `sort`·`roleFilter` 가 커서·요청이 일치하는지( 정렬/필터 변경 시 이전 커서 무효).
+ */
+export function cursorMatchesRequestListState(
+  c: ComparisonListCursorPayload,
+  requestSort: ComparisonHistoryListSort,
+  requestRoleFilter: ComparisonHistoryListRoleFilter,
+): boolean {
+  const cursorRole: ComparisonHistoryListRoleFilter = c.roleFilter ?? "all";
+  return c.sort === requestSort && cursorRole === requestRoleFilter;
 }
 
 /**
