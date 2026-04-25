@@ -20,6 +20,8 @@ export type SaveMemoPayload = {
   content: string;
   source_type: MemoSourceType;
   project_key: string | null;
+  /** read-side; 구 payload 에 없을 수 있음 → execute 시 `[]` 취급. */
+  tags?: string[];
 };
 
 export type PendingActionResult =

@@ -45,10 +45,7 @@ export async function POST(request: Request, { params }: Params) {
   const url = new URL(request.url);
   const queryMode = parseMode(url.searchParams.get("mode"));
   if (url.searchParams.has("mode") && queryMode === undefined) {
-    return NextResponse.json(
-      { error: "invalid_mode", allowed: MODES },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "invalid_mode", allowed: MODES }, { status: 400 });
   }
 
   let bodyMode: SummarizeMode | undefined;
@@ -62,10 +59,7 @@ export async function POST(request: Request, { params }: Params) {
       if (body?.mode !== undefined && body?.mode !== null) {
         const parsed = parseMode(String(body.mode));
         if (!parsed) {
-          return NextResponse.json(
-            { error: "invalid_mode", allowed: MODES },
-            { status: 400 },
-          );
+          return NextResponse.json({ error: "invalid_mode", allowed: MODES }, { status: 400 });
         }
         bodyMode = parsed;
       }

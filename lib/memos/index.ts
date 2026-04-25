@@ -10,11 +10,7 @@ export {
   type ListMemosResult,
   type MemoSortField,
 } from "./list-memos";
-export {
-  searchMemos,
-  type SearchMemosOptions,
-  type SearchMemosResult,
-} from "./search-memos";
+export { searchMemos, type SearchMemosOptions, type SearchMemosResult } from "./search-memos";
 export {
   summarizeMemo,
   type SummarizeMemoContext,
@@ -22,6 +18,10 @@ export {
   type SummarizeMode,
 } from "./summarize-memo";
 export { MEMO_ROW_SELECT } from "./memo-columns";
+export { mapMemoToListItem, mapMemosToListItems, normalizeMemoRow } from "./map-memo-dto";
+export { patchMemoReadSideFlags } from "./patch-memo-flags";
+export { parseMemoTagsFromInput, normalizeMemoTagList } from "./tag-input";
+export { validateExplicitMemoSaveRequest } from "./validate-memo-save";
 export { listPendingSaveMemos } from "./list-pending";
 export { listRecentSaveMemoOutcomes } from "./list-pending-outcomes";
 export type {

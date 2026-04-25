@@ -4,9 +4,8 @@
  * 핵심 규칙:
  *   - 사용자의 명시 저장 의도가 없으면 무조건 block.
  *   - 본문이 비어 있거나 과도하게 길면 block (DB 제약과 일치).
- *   - 민감정보는 여기서는 block 으로 변환하지 않는다.
- *     대신 pending_action.sensitivity_flag 로 이어지도록 호출부에 넘긴다.
- *     (UI 에서 stronger confirm 이 가능하도록 구조만 유지)
+ *   - 주민·카드번호 등 고위험 패턴은 `lib/memos/validate-memo-save` 에서 차단한다.
+ *   - 전화·API 키 유사 문턱은 block 이 아니라 pending_action.sensitivity_flag 로 이어질 수 있다.
  *
  * 이 모듈은 순수 함수만 제공한다. DB 접근/외부 IO 금지.
  */

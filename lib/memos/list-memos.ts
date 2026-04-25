@@ -2,9 +2,11 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { logMemoListRead } from "@/lib/logging/audit-log";
-import type { Memo } from "@/types/memo";
+import type { MemoListItemPayload } from "@/types/memo";
+import type { MemoListPageInfo } from "@/types/memos";
 
 import { MEMO_ROW_SELECT } from "./memo-columns";
+import { mapMemosToListItems } from "./map-memo-dto";
 import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "./types";
 
 export type MemoSortField = "created_at" | "updated_at";
@@ -12,12 +14,15 @@ export type MemoSortField = "created_at" | "updated_at";
 export type ListMemosOptions = {
   limit?: number;
   /**
+   * 0 기반 오프셋. `page.next_offset` 과 대응.
+   */
+  offset?: number;
+  /**
    * 정렬 기준. 기본값 `updated_at` — “최근에 손댄 메모” 우선.
    * `created_at` 은 최초 저장 시각 기준.
+   * 핀·북마크는 항상 해당 정렬보다 우선한다.
    */
   sort?: MemoSortField;
-  /** ISO 타임스탬프. 정렬 컬럼 기준으로 이보다 “이전” 페이지를 요청. */
-  cursor?: string | null;
   project_key?: string | null;
   /**
    * 감사 로그(성공 시 1회). Route / RSC / assistant 가 선택적으로 전달.
@@ -31,19 +36,15 @@ export type ListMemosOptions = {
 };
 
 export type ListMemosResult = {
-  items: Memo[];
-  next_cursor: string | null;
+  items: MemoListItemPayload[];
   sort: MemoSortField;
+  page: MemoListPageInfo;
 };
 
-export async function listMemos(
-  options: ListMemosOptions = {},
-): Promise<ListMemosResult> {
-  const limit = Math.min(
-    Math.max(options.limit ?? DEFAULT_LIST_LIMIT, 1),
-    MAX_LIST_LIMIT,
-  );
+export async function listMemos(options: ListMemosOptions = {}): Promise<ListMemosResult> {
+  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIST_LIMIT, 1), MAX_LIST_LIMIT);
   const sort: MemoSortField = options.sort ?? "updated_at";
+  const offset = Math.max(0, options.offset ?? 0);
 
   const supabase = await createClient();
 
@@ -51,22 +52,29 @@ export async function listMemos(
     .from("memos")
     .select(MEMO_ROW_SELECT)
     .eq("status", "active")
+    .order("pinned", { ascending: false })
+    .order("bookmarked", { ascending: false })
     .order(sort, { ascending: false })
-    .limit(limit + 1);
+    .order("id", { ascending: false })
+    .range(offset, offset + limit);
 
-  if (options.cursor) {
-    query = query.lt(sort, options.cursor);
-  }
   if (options.project_key) {
     query = query.eq("project_key", options.project_key);
   }
 
   const { data, error } = await query;
-  if (error || !data) {
-    const empty: ListMemosResult = {
+  const emptyPage = (): MemoListPageInfo => ({
+    limit,
+    offset,
+    has_more: false,
+    next_offset: null,
+  });
+
+  if (error) {
+    const result: ListMemosResult = {
       items: [],
-      next_cursor: null,
       sort,
+      page: emptyPage(),
     };
     if (options.audit) {
       await logMemoListRead({
@@ -75,19 +83,23 @@ export async function listMemos(
         source: options.audit.source,
         result_count: 0,
         sort,
-        has_cursor: Boolean(options.cursor),
+        offset,
         project_key: options.project_key ?? null,
       });
     }
-    return empty;
+    return result;
   }
 
-  const rows = data as Memo[];
+  const rows = data ?? [];
   const hasMore = rows.length > limit;
-  const items = hasMore ? rows.slice(0, limit) : rows;
-  const last = items.length > 0 ? items[items.length - 1] : undefined;
-  const next_cursor =
-    hasMore && last ? (last[sort] as string) : null;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const items = mapMemosToListItems(pageRows);
+  const page: MemoListPageInfo = {
+    limit,
+    offset,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
+  };
 
   if (options.audit) {
     await logMemoListRead({
@@ -96,10 +108,10 @@ export async function listMemos(
       source: options.audit.source,
       result_count: items.length,
       sort,
-      has_cursor: Boolean(options.cursor),
+      offset,
       project_key: options.project_key ?? null,
     });
   }
 
-  return { items, next_cursor, sort };
+  return { items, sort, page };
 }

@@ -21,6 +21,7 @@ import {
 import type { Memo } from "@/types/memo";
 
 import { MEMO_ROW_SELECT } from "./memo-columns";
+import { normalizeMemoRow } from "./map-memo-dto";
 
 /**
  * 메모 요약 정책 (API / UI 공통)
@@ -74,7 +75,7 @@ export async function summarizeMemo(
       reason: "if_empty_already_set",
       strategy: "skipped_not_run",
     });
-    return { status: "ok", memo: current };
+    return { status: "ok", memo: normalizeMemoRow(current) };
   }
 
   const contentPolicy = evaluateSummarizerContentPolicy({
@@ -197,5 +198,5 @@ export async function summarizeMemo(
     metadata: meta,
   });
 
-  return { status: "ok", memo: updated as Memo };
+  return { status: "ok", memo: normalizeMemoRow(updated) };
 }

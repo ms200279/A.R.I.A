@@ -9,6 +9,8 @@ import {
   searchMemos,
 } from "@/lib/memos";
 
+import MemoPolicyNotice from "@/components/memos/MemoPolicyNotice";
+
 import QuickCapture from "./_components/quick-capture";
 import PendingItem from "./_components/pending-item";
 import RecentPendingOutcomes from "./_components/recent-pending-outcomes";
@@ -18,13 +20,20 @@ import MemoListItem from "./_components/memo-list-item";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; tag?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    /** legacy: `project_key` 와 동일(프로젝트 키 정확 일치). */
+    tag?: string;
+    project_key?: string;
+    memo_tag?: string;
+  }>;
 };
 
 export default async function MemosPage({ searchParams }: PageProps) {
-  const { q, tag } = await searchParams;
+  const { q, tag, project_key, memo_tag } = await searchParams;
   const trimmed = (q ?? "").trim();
-  const tagTrim = (tag ?? "").trim() || null;
+  const projectKey = (project_key ?? tag ?? "").trim() || null;
+  const memoTag = (memo_tag ?? "").trim() || null;
 
   const supabase = await createClient();
   const {
@@ -45,12 +54,14 @@ export default async function MemosPage({ searchParams }: PageProps) {
   const memoResult = trimmed
     ? await searchMemos({
         query: trimmed,
-        tag: tagTrim,
+        project_key: projectKey,
+        tag: null,
+        memo_tag: memoTag,
         audit,
       })
     : await listMemos({
         sort: "updated_at",
-        project_key: tagTrim,
+        project_key: projectKey,
         audit,
       });
   const items = memoResult.items;
@@ -61,10 +72,15 @@ export default async function MemosPage({ searchParams }: PageProps) {
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold text-[var(--text-primary)]">메모</h2>
           <p className="text-sm text-[var(--text-secondary)]">
-            저장은 승인 후에만 반영됩니다. 조회·검색·요약은 자동으로 가능합니다. 프로젝트(태그)는
-            <code className="mx-0.5 rounded bg-white/10 px-1">project_key</code>로 저장·필터됩니다.
+            아래 목록은 저장이 완료된 메모만 보여 줍니다. 새 내용은 «저장 요청» 후 승인되면 여기에
+            나타납니다. 조회·검색·요약은 읽기 전용입니다.
+            <code className="mx-0.5 rounded bg-white/10 px-1">project_key</code>는 프로젝트,
+            <code className="mx-0.5 rounded bg-white/10 px-1">memo_tag</code>는 태그(배열) 필터로
+            씁니다.
           </p>
         </div>
+
+        <MemoPolicyNotice />
 
         <QuickCapture />
 
@@ -94,11 +110,13 @@ export default async function MemosPage({ searchParams }: PageProps) {
             <h3 className="text-base font-semibold text-[var(--text-primary)]">
               저장된 메모
               {trimmed ? ` — 검색 “${trimmed}”` : ""}
-              {tagTrim ? ` — 프로젝트 ${tagTrim}` : ""}
+              {projectKey ? ` — 프로젝트 ${projectKey}` : ""}
+              {memoTag ? ` — 태그 ${memoTag}` : ""}
             </h3>
             <SearchBox
               initialQuery={trimmed}
-              initialProjectKey={tagTrim ?? ""}
+              initialProjectKey={projectKey ?? ""}
+              initialMemoTag={memoTag ?? ""}
             />
           </div>
           {items.length === 0 ? (
@@ -116,7 +134,7 @@ export default async function MemosPage({ searchParams }: PageProps) {
               ))}
             </ul>
           )}
-          {(trimmed || tagTrim) && (
+          {(trimmed || projectKey || memoTag) && (
             <Link
               href={"/memos" as Route}
               className="text-xs text-[var(--text-secondary)] underline-offset-2 hover:underline"

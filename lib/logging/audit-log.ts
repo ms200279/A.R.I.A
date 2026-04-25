@@ -70,9 +70,7 @@ export type AuthCallbackFailureParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logAuthCallbackFailure(
-  params: AuthCallbackFailureParams,
-): Promise<void> {
+export async function logAuthCallbackFailure(params: AuthCallbackFailureParams): Promise<void> {
   await writeAuditLog({
     event_type: "auth.callback.failed",
     result: "failure",
@@ -91,9 +89,7 @@ export type LogoutSuccessParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logLogoutSuccess(
-  params: LogoutSuccessParams = {},
-): Promise<void> {
+export async function logLogoutSuccess(params: LogoutSuccessParams = {}): Promise<void> {
   await writeAuditLog({
     event_type: "auth.logout.succeeded",
     result: "success",
@@ -114,9 +110,7 @@ export type LogoutFailureParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logLogoutFailure(
-  params: LogoutFailureParams = {},
-): Promise<void> {
+export async function logLogoutFailure(params: LogoutFailureParams = {}): Promise<void> {
   await writeAuditLog({
     event_type: "auth.logout.failed",
     result: "failure",
@@ -146,9 +140,7 @@ export type MemoCreateRequestedParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logMemoCreateRequested(
-  params: MemoCreateRequestedParams,
-): Promise<void> {
+export async function logMemoCreateRequested(params: MemoCreateRequestedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.create.requested",
     result: "success",
@@ -168,9 +160,7 @@ export type MemoCreateBlockedParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logMemoCreateBlocked(
-  params: MemoCreateBlockedParams,
-): Promise<void> {
+export async function logMemoCreateBlocked(params: MemoCreateBlockedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.create.blocked",
     result: "failure",
@@ -192,9 +182,7 @@ export type MemoCreatePendingParams = {
   metadata?: Record<string, unknown>;
 };
 
-export async function logMemoCreatePending(
-  params: MemoCreatePendingParams,
-): Promise<void> {
+export async function logMemoCreatePending(params: MemoCreatePendingParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.create.pending",
     result: "success",
@@ -219,9 +207,7 @@ export type MemoApprovalExecutedParams = {
   sensitivity_flag: boolean;
 };
 
-export async function logMemoApprovalExecuted(
-  params: MemoApprovalExecutedParams,
-): Promise<void> {
+export async function logMemoApprovalExecuted(params: MemoApprovalExecutedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.approval.executed",
     result: "success",
@@ -244,9 +230,7 @@ export type MemoApprovalRejectedParams = {
   pending_action_id: string;
 };
 
-export async function logMemoApprovalRejected(
-  params: MemoApprovalRejectedParams,
-): Promise<void> {
+export async function logMemoApprovalRejected(params: MemoApprovalRejectedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.approval.rejected",
     result: "success",
@@ -318,9 +302,7 @@ export type MemoApprovalBlockedParams = {
  * pending_action 이 blocked 로 전이된 경우.
  * memos 테이블에는 어떤 쓰기도 일어나지 않는다.
  */
-export async function logMemoApprovalBlocked(
-  params: MemoApprovalBlockedParams,
-): Promise<void> {
+export async function logMemoApprovalBlocked(params: MemoApprovalBlockedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.approval.blocked",
     result: "failure",
@@ -344,9 +326,7 @@ export type MemoSummarizedParams = {
   metadata?: Record<string, unknown> | null;
 };
 
-export async function logMemoSummarized(
-  params: MemoSummarizedParams,
-): Promise<void> {
+export async function logMemoSummarized(params: MemoSummarizedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.summarized",
     result: "success",
@@ -374,9 +354,7 @@ export type SummarizerRequestParams = {
   regenerate?: boolean;
 };
 
-export async function logSummarizerRequestReceived(
-  params: SummarizerRequestParams,
-): Promise<void> {
+export async function logSummarizerRequestReceived(params: SummarizerRequestParams): Promise<void> {
   await writeAuditLog({
     event_type: "summarizer.request.received",
     result: "success",
@@ -503,9 +481,7 @@ export type SummarizerFallbackParams = {
   reason: string;
 };
 
-export async function logSummarizerFallbackUsed(
-  params: SummarizerFallbackParams,
-): Promise<void> {
+export async function logSummarizerFallbackUsed(params: SummarizerFallbackParams): Promise<void> {
   await writeAuditLog({
     event_type: "summarizer.fallback.used",
     result: "success",
@@ -555,7 +531,8 @@ export type MemoListReadParams = {
   source: MemoReadSource;
   result_count: number;
   sort: "created_at" | "updated_at";
-  has_cursor: boolean;
+  /** 목록 API `offset` (0 기반). */
+  offset: number;
   project_key?: string | null;
 };
 
@@ -575,7 +552,7 @@ export async function logMemoListRead(params: MemoListReadParams): Promise<void>
       source: params.source,
       result_count: params.result_count,
       sort: params.sort,
-      has_cursor: params.has_cursor,
+      offset: params.offset,
       project_key: params.project_key ?? null,
     },
   });
@@ -645,9 +622,7 @@ export type MemoReadMissingParams = {
  * 단건 조회가 빈 값으로 끝났을 때 (RLS/소유권/존재하지 않음 구분은 하지 않음).
  * 무차별 본문 열람 시도에 대한 흔적용.
  */
-export async function logMemoReadMissing(
-  params: MemoReadMissingParams,
-): Promise<void> {
+export async function logMemoReadMissing(params: MemoReadMissingParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.read.missing",
     result: "failure",
@@ -697,9 +672,7 @@ export async function logMemoSummarizePolicyBlocked(
 /**
  * if_empty 모드에서 이미 summary 가 있어 요약을 생략한 경우. 별도 `memo.summarized` 는 남기지 않는다.
  */
-export async function logMemoSummarizeSkipped(
-  params: MemoSummarizeSkippedParams,
-): Promise<void> {
+export async function logMemoSummarizeSkipped(params: MemoSummarizeSkippedParams): Promise<void> {
   await writeAuditLog({
     event_type: "memo.summarize.skipped",
     result: "success",
@@ -726,9 +699,7 @@ export type DocumentReadStartedParams = {
   source: DocumentReadSource;
 };
 
-export async function logDocumentReadStarted(
-  params: DocumentReadStartedParams,
-): Promise<void> {
+export async function logDocumentReadStarted(params: DocumentReadStartedParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.started",
     result: "success",
@@ -754,9 +725,7 @@ export type DocumentReadDetailParams = {
   has_analysis?: boolean;
 };
 
-export async function logDocumentReadDetail(
-  params: DocumentReadDetailParams,
-): Promise<void> {
+export async function logDocumentReadDetail(params: DocumentReadDetailParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.detail",
     result: "success",
@@ -784,9 +753,7 @@ export type DocumentReadMissingParams = {
   source: DocumentReadSource;
 };
 
-export async function logDocumentReadMissing(
-  params: DocumentReadMissingParams,
-): Promise<void> {
+export async function logDocumentReadMissing(params: DocumentReadMissingParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.missing",
     result: "failure",
@@ -808,9 +775,7 @@ export type DocumentReadForbiddenParams = {
   source: DocumentReadSource;
 };
 
-export async function logDocumentReadForbidden(
-  params: DocumentReadForbiddenParams,
-): Promise<void> {
+export async function logDocumentReadForbidden(params: DocumentReadForbiddenParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.forbidden",
     result: "failure",
@@ -965,9 +930,7 @@ export type DocumentReadSummariesParams = {
   has_latest_block: boolean;
 };
 
-export async function logDocumentReadSummaries(
-  params: DocumentReadSummariesParams,
-): Promise<void> {
+export async function logDocumentReadSummaries(params: DocumentReadSummariesParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.read.summaries",
     result: "success",
@@ -1346,9 +1309,7 @@ export type DocumentUploadStartedParams = {
   declared_mime: string;
 };
 
-export async function logDocumentUploadStarted(
-  params: DocumentUploadStartedParams,
-): Promise<void> {
+export async function logDocumentUploadStarted(params: DocumentUploadStartedParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.upload.started",
     result: "success",
@@ -1555,9 +1516,7 @@ export type DocumentUploadFailedParams = {
   reason: string;
 };
 
-export async function logDocumentUploadFailed(
-  params: DocumentUploadFailedParams,
-): Promise<void> {
+export async function logDocumentUploadFailed(params: DocumentUploadFailedParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.upload.failed",
     result: "failure",
@@ -1657,9 +1616,7 @@ export type DocumentSummarizedParams = {
   metadata?: Record<string, unknown> | null;
 };
 
-export async function logDocumentSummarized(
-  params: DocumentSummarizedParams,
-): Promise<void> {
+export async function logDocumentSummarized(params: DocumentSummarizedParams): Promise<void> {
   await writeAuditLog({
     event_type: "document.summarized",
     result: "success",
@@ -1737,9 +1694,7 @@ export type AssistantToolInvokedParams = {
   session_id?: string | null;
 };
 
-export async function logAssistantToolInvoked(
-  params: AssistantToolInvokedParams,
-): Promise<void> {
+export async function logAssistantToolInvoked(params: AssistantToolInvokedParams): Promise<void> {
   await writeAuditLog({
     event_type: "assistant.tool.invoked",
     result: "success",
@@ -1763,9 +1718,7 @@ export type AssistantToolBlockedParams = {
   reason: string;
 };
 
-export async function logAssistantToolBlocked(
-  params: AssistantToolBlockedParams,
-): Promise<void> {
+export async function logAssistantToolBlocked(params: AssistantToolBlockedParams): Promise<void> {
   await writeAuditLog({
     event_type: "assistant.tool.blocked",
     result: "failure",
@@ -1789,9 +1742,7 @@ export type AssistantRunCompletedParams = {
   tool_call_count: number;
 };
 
-export async function logAssistantRunCompleted(
-  params: AssistantRunCompletedParams,
-): Promise<void> {
+export async function logAssistantRunCompleted(params: AssistantRunCompletedParams): Promise<void> {
   await writeAuditLog({
     event_type: "assistant.run.completed",
     result: "success",
@@ -1818,9 +1769,7 @@ export type AssistantRunFailedParams = {
   error_message?: string | null;
 };
 
-export async function logAssistantRunFailed(
-  params: AssistantRunFailedParams,
-): Promise<void> {
+export async function logAssistantRunFailed(params: AssistantRunFailedParams): Promise<void> {
   await writeAuditLog({
     event_type: "assistant.run.failed",
     result: "failure",

@@ -5,6 +5,8 @@ import { compareDocuments } from "@/lib/documents/compare-documents";
 import { getDocumentDetail } from "@/lib/documents/get-document";
 import { listDocuments } from "@/lib/documents/list-documents";
 import { createMemoDraft, listMemos, searchMemos } from "@/lib/memos";
+import { normalizeMemoTagList } from "@/lib/memos/tag-input";
+import { ASSISTANT_MEMO_MODEL_PREVIEW_MAX_CHARS } from "@/types/memos";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentDetailPayload, DocumentListItemPayload } from "@/types/document";
 import {
@@ -118,10 +120,7 @@ function isKnownTool(name: string): name is ToolName {
 // read tools
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function runSearchMemos(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runSearchMemos(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = SearchMemosArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "search_memos", reason: "invalid_arguments" };
@@ -146,16 +145,14 @@ async function runSearchMemos(
   };
 }
 
-async function runGetRecentMemos(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runGetRecentMemos(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = GetRecentMemosArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "get_recent_memos", reason: "invalid_arguments" };
   }
   const result = await listMemos({
-    limit: parsed.data.limit,
+    limit: parsed.data.limit ?? 10,
+    offset: parsed.data.offset,
     project_key: parsed.data.project_key ?? null,
     sort: parsed.data.sort,
     audit: {
@@ -169,6 +166,7 @@ async function runGetRecentMemos(
     name: "get_recent_memos",
     payload: {
       count: result.items.length,
+      page: result.page,
       items: result.items.map(projectMemoForModel),
     },
   };
@@ -200,10 +198,7 @@ async function runSearchWeb(raw: unknown): Promise<ToolResult> {
   return { kind: "data", name: "search_web", payload: result };
 }
 
-async function runListDocuments(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runListDocuments(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = ListDocumentsArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "list_documents", reason: "invalid_arguments" };
@@ -232,10 +227,7 @@ async function runListDocuments(
   };
 }
 
-async function runGetDocumentDetail(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runGetDocumentDetail(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = GetDocumentDetailArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "get_document_detail", reason: "invalid_arguments" };
@@ -260,10 +252,7 @@ async function runGetDocumentDetail(
   };
 }
 
-async function runCompareDocuments(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runCompareDocuments(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = CompareDocumentsArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "compare_documents", reason: "invalid_arguments" };
@@ -291,10 +280,7 @@ async function runCompareDocuments(
   };
 }
 
-async function runAnalyzeDocument(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runAnalyzeDocument(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = AnalyzeDocumentArgs.safeParse(raw);
   if (!parsed.success) {
     return { kind: "error", name: "analyze_document", reason: "invalid_arguments" };
@@ -332,10 +318,7 @@ async function runAnalyzeDocument(
  * 모델은 이 결과를 바탕으로 사용자에게 확인 질문을 던지거나,
  * 사용자의 원문이 이미 명시적 저장 요청이면 바로 create_pending_action_for_memo 로 넘어간다.
  */
-async function runProposeSaveMemo(
-  raw: unknown,
-  ctx: AssistantRunContext,
-): Promise<ToolResult> {
+async function runProposeSaveMemo(raw: unknown, ctx: AssistantRunContext): Promise<ToolResult> {
   const parsed = ProposeSaveMemoArgs.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -368,7 +351,8 @@ async function runProposeSaveMemo(
       would_save: false,
       title: parsed.data.title ?? null,
       project_key: parsed.data.project_key ?? null,
-      content_preview: content.trim().slice(0, 200),
+      tags: parsed.data.tags ?? [],
+      content_preview: content.trim().slice(0, ASSISTANT_MEMO_MODEL_PREVIEW_MAX_CHARS),
       content_length: content.length,
       sensitivity_flag: sensitivityFlag,
       sensitivity_categories: sensitivityCategories,
@@ -425,6 +409,7 @@ async function runCreatePendingActionForMemo(
       content: parsed.data.content,
       title: parsed.data.title ?? null,
       project_key: parsed.data.project_key ?? null,
+      tags: normalizeMemoTagList(parsed.data.tags ?? null),
       source_type: "chat",
       explicit: true,
     },
@@ -464,6 +449,9 @@ type MemoProjection = {
   title: string | null;
   preview: string;
   project_key: string | null;
+  tags: string[];
+  pinned: boolean;
+  bookmarked: boolean;
   sensitivity_flag: boolean;
   created_at: string;
   updated_at: string;
@@ -503,9 +491,7 @@ function truncateLatestForAssistant<T extends { content: string }>(
   const truncated = content.length > ASSISTANT_DOCUMENT_SUMMARY_MAX;
   return {
     ...block,
-    content: truncated
-      ? `${content.slice(0, ASSISTANT_DOCUMENT_SUMMARY_MAX - 1)}…`
-      : content,
+    content: truncated ? `${content.slice(0, ASSISTANT_DOCUMENT_SUMMARY_MAX - 1)}…` : content,
     content_truncated: truncated,
   };
 }
@@ -522,20 +508,28 @@ function projectDocumentDetailForModel(d: DocumentDetailPayload) {
 function projectMemoForModel(memo: {
   id: string;
   title: string | null;
-  content: string;
+  content_preview: string;
   summary: string | null;
   project_key: string | null;
+  tags: string[];
+  pinned: boolean;
+  bookmarked: boolean;
   sensitivity_flag: boolean;
   created_at: string;
   updated_at: string;
 }): MemoProjection {
-  // 모델 컨텍스트를 아끼기 위해 원문 대신 summary(있으면) 또는 200자 미리보기만 넘긴다.
-  const preview = (memo.summary ?? memo.content).trim().slice(0, 200);
+  // 모델 컨텍스트를 아끼기 위해 원문 대신 summary(있으면) 또는 미리보기만 넘긴다.
+  const cap = ASSISTANT_MEMO_MODEL_PREVIEW_MAX_CHARS;
+  const base = (memo.summary ?? memo.content_preview).trim();
+  const preview = base.length > cap ? `${base.slice(0, cap - 1)}…` : base;
   return {
     id: memo.id,
     title: memo.title,
     preview,
     project_key: memo.project_key,
+    tags: memo.tags,
+    pinned: memo.pinned,
+    bookmarked: memo.bookmarked,
     sensitivity_flag: memo.sensitivity_flag,
     created_at: memo.created_at,
     updated_at: memo.updated_at,

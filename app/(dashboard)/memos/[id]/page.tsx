@@ -6,7 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getMemo } from "@/lib/memos";
 import { displayMemoTitle } from "@/lib/memos/display";
 
+import MemoPolicyNotice from "@/components/memos/MemoPolicyNotice";
+
 import SummarizeButton from "./_components/summarize-button";
+import MemoDetailFlags from "./_components/memo-detail-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +46,7 @@ export default async function MemoDetailPage({ params }: PageProps) {
             ← 메모 목록
           </Link>
         </nav>
+        <MemoPolicyNotice />
         <header className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold text-[var(--text-primary)]">{heading}</h2>
@@ -56,7 +60,20 @@ export default async function MemoDetailPage({ params }: PageProps) {
                 {memo.project_key}
               </span>
             )}
+            {memo.tags?.length > 0 && (
+              <span className="flex flex-wrap gap-1">
+                {memo.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
+          <MemoDetailFlags memoId={memo.id} pinned={memo.pinned} bookmarked={memo.bookmarked} />
           <p className="text-xs text-[var(--text-tertiary)]">
             생성 {new Date(memo.created_at).toLocaleString()} · 수정{" "}
             {new Date(memo.updated_at).toLocaleString()} · source={memo.source_type}
@@ -78,8 +95,10 @@ export default async function MemoDetailPage({ params }: PageProps) {
             </p>
           ) : (
             <p className="rounded border border-dashed border-white/15 p-3 text-xs text-[var(--text-tertiary)]">
-              아직 요약이 없습니다. 버튼으로 생성하거나 API <code className="rounded bg-white/10 px-1">POST /api/memos/[id]/summarize</code> 의{" "}
-              <code className="rounded bg-white/10 px-1">mode=if_empty</code> 로 이미 있을 때 생략할 수 있습니다.
+              아직 요약이 없습니다. 버튼으로 생성하거나 API{" "}
+              <code className="rounded bg-white/10 px-1">POST /api/memos/[id]/summarize</code> 의{" "}
+              <code className="rounded bg-white/10 px-1">mode=if_empty</code> 로 이미 있을 때 생략할
+              수 있습니다.
             </p>
           )}
         </section>

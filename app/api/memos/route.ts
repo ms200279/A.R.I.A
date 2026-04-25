@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { listMemos, type MemoSortField } from "@/lib/memos";
+import type { MemoListApiResponse } from "@/types/memos";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ function parseSort(v: string | null): MemoSortField | undefined {
  *   본인 메모 목록. RLS 로 강제됨.
  *   query:
  *     limit?  number  (default 50, max 200)
- *     cursor? string  (정렬 기준 컬럼의 ISO timestamp, 그보다 과거 페이지)
+ *     offset? number  (0 기반; 핀·북마크 다음 정렬)
  *     project_key? string
  *     sort?  created_at | updated_at  (기본 updated_at)
  *
@@ -32,10 +33,12 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const limitParam = url.searchParams.get("limit");
-  const cursor = url.searchParams.get("cursor");
+  const offsetParam = url.searchParams.get("offset");
   const projectKey = url.searchParams.get("project_key");
   const sortParam = url.searchParams.get("sort");
   const sort = parseSort(sortParam);
+  const offsetParsed = offsetParam ? Number.parseInt(offsetParam, 10) : 0;
+  const offset = Number.isFinite(offsetParsed) && offsetParsed >= 0 ? offsetParsed : 0;
 
   if (sortParam && !sort) {
     return NextResponse.json(
@@ -47,7 +50,7 @@ export async function GET(request: Request) {
   const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
   const result = await listMemos({
     limit: Number.isFinite(limit) ? limit : undefined,
-    cursor: cursor ?? null,
+    offset,
     project_key: projectKey ?? null,
     sort,
     audit: {
@@ -57,5 +60,10 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json(result);
+  const body: MemoListApiResponse = {
+    items: result.items,
+    sort: result.sort,
+    page: result.page,
+  };
+  return NextResponse.json(body);
 }

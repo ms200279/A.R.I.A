@@ -59,12 +59,13 @@
 
 ### `/api/memos`
 
-- `GET  /api/memos` — 본인 `active` 메모 목록 (RLS). cursor 기반 페이징: `?limit=&cursor=&project_key=&sort=created_at|updated_at` (기본 `updated_at` 내림차순, cursor 는 해당 컬럼 ISO). 응답: `{ items, next_cursor, sort }`. `memo.read.list` 감사.
-- `GET  /api/memos/search` — `?q=&limit=&project_key=&tag=` (부분일치: title/content/summary/project_key, `tag`·`project_key` 는 정확 일치 필터·`tag` 우선). `memo.searched` (쿼리 **길이**만, 원문 미로그).
-- `GET  /api/memos/[id]` — 단건. 404 시 `memo.read.missing`. 성공 시 `memo.read.detail`.
-- `POST /api/memos/create` — pending 저장 요청 (명시 저장만, 기존과 동일).
+- `GET  /api/memos` — 본인 `active` 메모 목록 (RLS). `?limit=&offset=&project_key=&sort=created_at|updated_at` (기본 `updated_at` 내림차순; `pinned`·`bookmarked` 가 같은 사용자 내에서 먼저). 응답 `MemoListApiResponse`: `items`(`MemoListItemPayload[]`, `content_preview` 만·전체 `content` 없음), `page`: `{ limit, offset, has_more, next_offset }`, `sort`. `memo.read.list` 감사( metadata 에 `offset`).
+- `GET  /api/memos/search` — `?q=&limit=&project_key=&tag=&memo_tag=` (부분일치: title/content/summary/project_key; `tag`·`project_key` 는 `project_key` 열 정확 일치·`tag` 우선; `memo_tag` 는 `tags` 배열 contains 정확 한 태그). 응답 `MemoSearchResponse` (`items` + `query`). `memo.searched` (쿼리 **길이**만, 원문 미로그).
+- `GET  /api/memos/[id]` — 단건. 404 시 `memo.read.missing`. 성공 시 `MemoDetailPayload` ( row; `content`·`tags`·`pinned`·`bookmarked` 포함).
+- `POST /api/memos/create` — pending 저장 요청. body: `content`, `explicit`, `title?`, `source_type?`, `project_key?`, `tags?`(배열), `tags_text?`(콤마 구문, `tags` 와 병합 후 정규화).
+- `PATCH /api/memos/[id]/flags` — read-side: `pinned` / `bookmarked` 중 하나 이상( boolean ). service_role + 소유자 검증. 응답 `{ ok: true }`.
 - `POST /api/memos/[id]/summarize` — `summary` 갱신. `lib/memos/summarize-memo` → `lib/summarizers/runSummarizerWithFallback`(게이트 → Gemini 또는 rule). body/query `mode`: `regenerate`(기본, **항상 덮어쓰기**) \| `if_empty` (이미 있으면 `memo.summarize.skipped`). 선택 body `resource_kind`: 기본 `memo`. `document`\|`mail` 은 계약 검증 후 400(`resource_kind_not_supported_for_memo_endpoint`). 본문이 정책 길이를 넘으면 400(`content_policy_violation`) + `memo.summarize.policy_blocked`. env: `SUMMARIZER_PROVIDER=auto|gemini|rule`, `GEMINI_API_KEY`, `GEMINI_MODEL`. 감사: `summarizer.request.received`(phase started) → `summarizer.safety.evaluated` → (`summarizer.gemini.failed` + `summarizer.fallback.used` 선택) → 저장 후 `summarizer.provider.resolved`(chunked/chunk_count 등) → `memo.summarized`.
-- `PATCH/DELETE` — 없음
+- `DELETE` — 없음
 
 ### `/api/mail`
 
@@ -113,6 +114,7 @@
   - 감사 로그: `memo.approval.rejected` / 중복 거절 시 `memo.approval.reject_idempotent`.
 
 정책 요약 (memos write):
+
 - `memos` 에 대한 INSERT 경로는 서버의 `executeApprovedMemo` 단 하나. confirm 이전에는 어떤 경로로도 insert 되지 않는다.
 - `save_memo` confirm: 이미 `executed` + `memo_saved` 면 200 멱등. 그 외 `rejected` / `blocked` / `approved`(중간) 등에서의 재confirm 은 409.
 - reject: 이미 `rejected` 면 200 멱등 로그만; `executed` 등이면 409.

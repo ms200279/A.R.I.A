@@ -1,7 +1,5 @@
 import "server-only";
 
-import { evaluateMemoCreate } from "@/lib/policies/memo";
-import { detectSensitiveContent } from "@/lib/safety/sensitive";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
   logMemoCreateBlocked,
@@ -11,6 +9,8 @@ import {
 import type { SaveMemoPayload } from "@/types/pending-action";
 
 import type { CreateMemoInput, CreateMemoResult } from "./types";
+import { normalizeMemoTagList } from "./tag-input";
+import { validateExplicitMemoSaveRequest } from "./validate-memo-save";
 
 export type CreateMemoContext = {
   user_id: string;
@@ -37,34 +37,32 @@ export async function createMemoDraft(
     },
   });
 
-  const sensitivity = detectSensitiveContent(input.content ?? "");
-
-  const evaluation = evaluateMemoCreate(
-    {
-      content: input.content ?? "",
-      title: input.title ?? null,
-      explicit: input.explicit,
-    },
-    sensitivity,
-  );
-
-  if (evaluation.decision === "block") {
+  const validation = validateExplicitMemoSaveRequest({
+    content: input.content ?? "",
+    title: input.title ?? null,
+    explicit: input.explicit,
+  });
+  if (!validation.ok) {
     await logMemoCreateBlocked({
       actor_id: ctx.user_id,
       actor_email: ctx.user_email ?? null,
-      reason: evaluation.reason,
+      reason: validation.reason,
       metadata: {
-        sensitivity_categories: sensitivity.map((m) => m.category),
+        sensitivity_categories: validation.sensitivity.map((m) => m.category),
       },
     });
-    return { status: "blocked", reason: evaluation.reason };
+    return { status: "blocked", reason: validation.reason };
   }
+  const sensitivity = validation.sensitivity;
+
+  const tags = normalizeMemoTagList(input.tags);
 
   const payload: SaveMemoPayload = {
     title: (input.title ?? "").trim() || null,
     content: input.content.trim(),
     source_type: input.source_type ?? "quick_capture",
     project_key: input.project_key ?? null,
+    tags,
   };
 
   const sensitivityFlag = sensitivity.length > 0;
