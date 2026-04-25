@@ -6,8 +6,8 @@ import { searchMemos } from "@/lib/memos";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/memos/search?q=...&limit=...&project_key=...&tag=...
- * `tag` / `project_key` 는 `project_key` 열에 대한 정확 일치 필터(동시 지정 시 `tag` 우선).
+ * GET /api/memos/search?q=...&limit=...&project_key=...&tag=...&memo_tag=...
+ * `tag` / `project_key` 는 `project_key` 열 정확 일치(동시 지정 시 `tag` 우선). `memo_tag` 는 `tags` 배열에 포함(정확 일치) 필터.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const limitParam = url.searchParams.get("limit");
   const projectKey = url.searchParams.get("project_key");
   const tag = url.searchParams.get("tag");
+  const memoTag = url.searchParams.get("memo_tag");
 
   const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
   const result = await searchMemos({
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
     limit: Number.isFinite(limit) ? limit : undefined,
     project_key: projectKey ?? null,
     tag: tag ?? null,
+    memo_tag: memoTag ?? null,
     audit: {
       actor_id: userData.user.id,
       actor_email: userData.user.email ?? null,

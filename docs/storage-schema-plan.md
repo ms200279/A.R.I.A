@@ -28,8 +28,8 @@
 ### 메모
 
 - `memos`
-  - 본문, 태그, 생성/수정 시각, 소유자.
-  - **사용자가 명시적으로 저장한 것만** 들어감.
+  - 본문, `source_type`/`project_key`/`tags`(read-side, text[]), `pinned`·`bookmarked`(read-side), 생성/수정 시각, 소유자.
+  - **사용자가 명시적으로 저장한 것만** 들어감(자동 장기기억 아님). 일반 RLS 쓰기 없음(승인 확정·요약·read-side API 가 service_role 등으로 갱신).
 
 ### 메일 (읽기 중심)
 

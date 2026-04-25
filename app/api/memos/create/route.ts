@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { createMemoDraft } from "@/lib/memos";
+import { parseMemoTagsFromInput } from "@/lib/memos/tag-input";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,12 @@ const CreateMemoBodySchema = z.object({
   title: z.string().max(500).optional().nullable(),
   source_type: z.enum(["quick_capture", "chat", "import"]).optional(),
   project_key: z.string().max(200).optional().nullable(),
+  /**
+   * 단일 태그 문자열 배열( JSON ) 또는 (선호) `tags_text` 콤마 구문만으로도 전달 가능.
+   */
+  tags: z.array(z.string().max(64)).max(30).optional(),
+  /** 콤마 구문 태그( `work, idea` ) — `tags` 와 병합되며, 서버가 정규화한다. */
+  tags_text: z.string().max(2000).optional().nullable(),
   explicit: z.boolean(),
 });
 
@@ -40,10 +47,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await createMemoDraft(parsed.data, {
-    user_id: userData.user.id,
-    user_email: userData.user.email ?? null,
-  });
+  const { tags_text, tags, ...rest } = parsed.data;
+  const fromText = parseMemoTagsFromInput(tags_text ?? "");
+  const merged = [...(tags ?? []), ...fromText];
+  const result = await createMemoDraft(
+    { ...rest, tags: merged },
+    {
+      user_id: userData.user.id,
+      user_email: userData.user.email ?? null,
+    },
+  );
 
   if (result.status === "blocked") {
     return NextResponse.json(result, { status: 409 });

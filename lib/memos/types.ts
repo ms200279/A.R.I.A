@@ -8,6 +8,8 @@ export type CreateMemoInput = {
   title?: string | null;
   source_type?: MemoSourceType;
   project_key?: string | null;
+  /** 정규화는 `normalizeMemoTagList` 로 도메인 계층에서 수행. */
+  tags?: string[] | null;
   /**
    * 사용자가 "저장해줘" 같은 명시 의도를 표한 경우에만 true.
    * 오케스트레이터/챗 UI 에서 저장 의도가 확인되지 않은 흐름이라면 항상 false.

@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { MEMO_CONTENT_MAX } from "@/lib/policies/memo";
+import { MEMO_TAGS_MAX_COUNT, MEMO_TAG_MAX_CHARS } from "@/types/memos";
 import type { SaveMemoPayload } from "@/types/pending-action";
 
 /**
@@ -15,12 +16,10 @@ import type { SaveMemoPayload } from "@/types/pending-action";
  */
 export const SaveMemoPayloadSchema: z.ZodType<SaveMemoPayload> = z.object({
   title: z.string().nullable(),
-  content: z
-    .string()
-    .min(1, "empty_content")
-    .max(MEMO_CONTENT_MAX, "too_long"),
+  content: z.string().min(1, "empty_content").max(MEMO_CONTENT_MAX, "too_long"),
   source_type: z.enum(["quick_capture", "chat", "import"]),
   project_key: z.string().nullable(),
+  tags: z.array(z.string().max(MEMO_TAG_MAX_CHARS)).max(MEMO_TAGS_MAX_COUNT).default([]),
 });
 
 export type SaveMemoPayloadParseResult =

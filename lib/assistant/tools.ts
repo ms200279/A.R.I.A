@@ -48,6 +48,8 @@ export const GetRecentMemosArgs = z.object({
   project_key: z.string().max(200).optional().nullable(),
   /** 기본 `updated_at` (최근 수정 우선). */
   sort: z.enum(["created_at", "updated_at"]).optional(),
+  /** `GET /api/memos` 와 동일: 핀·북마크 정렬 뒤 `offset` 페이지. */
+  offset: z.number().int().min(0).max(20_000).optional(),
 });
 export type GetRecentMemosArgs = z.infer<typeof GetRecentMemosArgs>;
 
@@ -88,6 +90,7 @@ export const ProposeSaveMemoArgs = z.object({
   title: z.string().min(1).max(200).optional().nullable(),
   content: z.string().min(1).max(50_000),
   project_key: z.string().max(200).optional().nullable(),
+  tags: z.array(z.string().max(64)).max(30).optional(),
 });
 export type ProposeSaveMemoArgs = z.infer<typeof ProposeSaveMemoArgs>;
 
@@ -124,7 +127,7 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
   {
     name: "search_memos",
     description:
-      "사용자의 저장된 메모를 제목/본문/요약/프로젝트 키 기준으로 부분 일치 검색한다. 사용자가 '내 메모에서 X 찾아줘' 또는 과거 메모를 참조해야 할 때 호출한다.",
+      "사용자의 저장된 메모를 제목/본문/요약/프로젝트 키 기준으로 부분 일치 검색한다. **전체 본문이 아니라** 짧은 미리보기·제목·요약(있으면)·메타(project_key, tags) 중심으로만 돌려준다. 긴 원문이 필요하면 사용자에게 메모를 직접 열어 보도록 안내한다. '내 메모에서 X 찾아줘'·과거 메모 참조에 사용.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -146,7 +149,7 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
   {
     name: "get_recent_memos",
     description:
-      "사용자의 최근 메모를 조회한다. 기본은 최근 수정일(updated_at) 기준. 사용자가 '최근 뭐 적었지' 또는 '최근 메모 보여줘' 같은 맥락을 요청할 때 사용한다.",
+      "사용자의 최근 메모를 조회한다. **전체 본문이 아니라** `preview`(짧은 미리보기)·제목·tags·project_key 등만 반환한다. 핀/북마크가 앞섞인 목록(읽기 편의)이다. '최근 뭐 적었지'·'최근 메모 보여줘'에 사용. 원문이 필요하면 앱에서 해당 메모를 열도록 유도.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -163,9 +166,14 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
         },
         sort: {
           type: "string",
-          description:
-            "정렬·페이지 커서 기준 컬럼. 'updated_at'(기본) 또는 'created_at'.",
+          description: "정렬 2차 기준( 핀/북마크 다음 ). 'updated_at'(기본) 또는 'created_at'.",
           enum: ["created_at", "updated_at"],
+        },
+        offset: {
+          type: "integer",
+          description:
+            "페이지 오프셋(0 기반). 다음 페이지는 이전 tools 응답에 page.has_more 가 있을 때 `page.next_offset` 을 사용.",
+          minimum: 0,
         },
       },
       required: [],
@@ -181,8 +189,7 @@ export const NEUTRAL_TOOL_DEFS: NeutralTool[] = [
       properties: {
         location: {
           type: ["string", "null"],
-          description:
-            "도시명 또는 좌표 문자열. 비워 두면 기본 위치 (현재 구현에서는 미지원).",
+          description: "도시명 또는 좌표 문자열. 비워 두면 기본 위치 (현재 구현에서는 미지원).",
         },
       },
       required: [],

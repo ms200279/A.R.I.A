@@ -5,11 +5,7 @@ import { displayMemoTitle } from "@/lib/memos/display";
 import type { SaveMemoPendingOutcome } from "@/types/pending-action";
 
 function memoIdFromResult(result: unknown): string | null {
-  if (
-    result &&
-    typeof result === "object" &&
-    (result as { kind?: string }).kind === "memo_saved"
-  ) {
+  if (result && typeof result === "object" && (result as { kind?: string }).kind === "memo_saved") {
     const id = (result as { memo_id?: string }).memo_id;
     return typeof id === "string" ? id : null;
   }
@@ -27,11 +23,7 @@ function statusLabel(status: SaveMemoPendingOutcome["status"]) {
   }
 }
 
-export default function RecentPendingOutcomes({
-  items,
-}: {
-  items: SaveMemoPendingOutcome[];
-}) {
+export default function RecentPendingOutcomes({ items }: { items: SaveMemoPendingOutcome[] }) {
   if (items.length === 0) return null;
 
   return (
@@ -53,9 +45,7 @@ export default function RecentPendingOutcomes({
               className="rounded border border-white/10 bg-white/[0.02] px-3 py-2 text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
-                >
+                <span className={`rounded px-2 py-0.5 text-[10px] font-medium ${badge.className}`}>
                   {badge.text}
                 </span>
                 {memoId ? (
@@ -71,9 +61,7 @@ export default function RecentPendingOutcomes({
               </div>
               <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
                 처리 {new Date(o.updated_at).toLocaleString()}
-                {o.status === "blocked" && o.blocked_reason
-                  ? ` · 사유: ${o.blocked_reason}`
-                  : ""}
+                {o.status === "blocked" && o.blocked_reason ? ` · 사유: ${o.blocked_reason}` : ""}
               </p>
             </li>
           );

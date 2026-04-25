@@ -10,9 +10,12 @@ type Status =
   | { kind: "error"; message: string };
 
 const BLOCK_MESSAGES: Record<string, string> = {
-  missing_explicit_intent: "명시 저장 의도가 확인되지 않아 차단되었습니다. '저장 요청' 체크를 켜 주세요.",
+  missing_explicit_intent:
+    "명시 저장 의도가 확인되지 않아 차단되었습니다. '저장 요청' 체크를 켜 주세요.",
   empty_content: "본문이 비어 있습니다.",
   too_long: "본문이 너무 깁니다 (최대 50,000자).",
+  sensitive_high_risk:
+    "주민등록번호·카드번호 형식이 감지되어 저장 요청을 받을 수 없습니다. 해당 정보는 메모에 넣지 마세요.",
   pending_action_insert_failed: "저장 요청을 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.",
 };
 
@@ -20,6 +23,9 @@ export default function QuickCapture() {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
+  const [projectKey, setProjectKey] = useState("");
+  const [tagsText, setTagsText] = useState("");
+  const [showMeta, setShowMeta] = useState(false);
   const [explicit, setExplicit] = useState(true);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [isPending, startTransition] = useTransition();
@@ -35,6 +41,8 @@ export default function QuickCapture() {
         content,
         title: title.trim() || null,
         source_type: "quick_capture",
+        project_key: projectKey.trim() || null,
+        tags_text: tagsText.trim() || null,
         explicit,
       }),
     });
@@ -64,6 +72,8 @@ export default function QuickCapture() {
       setStatus({ kind: "pending", sensitivity_flag: data.sensitivity_flag });
       setContent("");
       setTitle("");
+      setProjectKey("");
+      setTagsText("");
       startTransition(() => router.refresh());
       return;
     }
@@ -104,12 +114,47 @@ export default function QuickCapture() {
           required
         />
       </div>
+      <button
+        type="button"
+        onClick={() => setShowMeta((v) => !v)}
+        className="text-xs text-[var(--text-secondary)] underline-offset-2 hover:underline"
+      >
+        {showMeta ? "프로젝트·태그 숨기기" : "프로젝트·태그 (선택)"}
+      </button>
+      {showMeta && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label htmlFor="memo-pk" className="text-xs opacity-70">
+              project_key
+            </label>
+            <input
+              id="memo-pk"
+              type="text"
+              value={projectKey}
+              onChange={(e) => setProjectKey(e.target.value)}
+              placeholder="예: work / personal"
+              className="w-full rounded border border-black/15 bg-transparent px-2 py-1 text-sm dark:border-white/15"
+              maxLength={200}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <label htmlFor="memo-tags" className="text-xs opacity-70">
+              태그 (콤마로 구분)
+            </label>
+            <input
+              id="memo-tags"
+              type="text"
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+              placeholder="idea, follow-up"
+              className="w-full rounded border border-black/15 bg-transparent px-2 py-1 text-sm dark:border-white/15"
+              maxLength={2000}
+            />
+          </div>
+        </div>
+      )}
       <label className="flex items-center gap-2 text-xs opacity-80">
-        <input
-          type="checkbox"
-          checked={explicit}
-          onChange={(e) => setExplicit(e.target.checked)}
-        />
+        <input type="checkbox" checked={explicit} onChange={(e) => setExplicit(e.target.checked)} />
         <span>이 내용을 메모로 저장 요청합니다 (명시 저장)</span>
       </label>
       <div className="flex items-center justify-between gap-3">

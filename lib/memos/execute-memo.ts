@@ -6,13 +6,12 @@ import {
   logMemoApprovalConfirmIdempotent,
   logMemoApprovalExecuted,
 } from "@/lib/logging/audit-log";
-import { evaluateMemoCreate } from "@/lib/policies/memo";
-import { detectSensitiveContent } from "@/lib/safety/sensitive";
 import type { PendingActionStatus } from "@/types/pending-action";
 
 import { parseSaveMemoPayload } from "./payload-schema";
 import { isMemoSavedPendingResult } from "./pending-result-guards";
 import type { ExecuteMemoResult } from "./types";
+import { validateExplicitMemoSaveRequest } from "./validate-memo-save";
 
 export type ExecuteMemoContext = {
   user_id: string;
@@ -40,9 +39,7 @@ export async function executeApprovedMemo(
 
   const { data: pending, error: loadErr } = await service
     .from("pending_actions")
-    .select(
-      "id, user_id, action_type, target_type, status, payload, sensitivity_flag, result",
-    )
+    .select("id, user_id, action_type, target_type, status, payload, sensitivity_flag, result")
     .eq("id", pendingActionId)
     .eq("user_id", ctx.user_id)
     .maybeSingle();
@@ -85,30 +82,31 @@ export async function executeApprovedMemo(
   }
 
   const payload = parsed.payload;
-  const sensitivityMatches = detectSensitiveContent(payload.content);
-  const evaluation = evaluateMemoCreate(
+  const validation = validateExplicitMemoSaveRequest(
     {
       content: payload.content,
       title: payload.title,
       explicit: true,
     },
-    sensitivityMatches,
+    undefined,
   );
-
-  if (evaluation.decision === "block") {
-    await markBlocked(service, pendingActionId, evaluation.reason);
+  if (!validation.ok) {
+    await markBlocked(service, pendingActionId, validation.reason);
     await logMemoApprovalBlocked({
       actor_id: ctx.user_id,
       actor_email: ctx.user_email ?? null,
       pending_action_id: pendingActionId,
-      reason: evaluation.reason,
-      metadata: { stage: "confirm_policy", sensitivity_categories: sensitivityMatches },
+      reason: validation.reason,
+      metadata: {
+        stage: "confirm_policy",
+        sensitivity_categories: validation.sensitivity.map((m) => m.category),
+      },
     });
-    return { status: "blocked", reason: evaluation.reason };
+    return { status: "blocked", reason: validation.reason };
   }
 
-  const sensitivityFlag =
-    sensitivityMatches.length > 0 || pending.sensitivity_flag === true;
+  const sensitivityMatches = validation.sensitivity;
+  const sensitivityFlag = sensitivityMatches.length > 0 || pending.sensitivity_flag === true;
 
   const { data: claimed, error: claimErr } = await service
     .from("pending_actions")
@@ -149,6 +147,7 @@ export async function executeApprovedMemo(
       content: payload.content,
       source_type: payload.source_type,
       project_key: payload.project_key,
+      tags: Array.isArray(payload.tags) ? payload.tags : [],
       sensitivity_flag: sensitivityFlag,
       status: "active",
     })

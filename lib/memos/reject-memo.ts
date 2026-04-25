@@ -1,10 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
-import {
-  logMemoApprovalRejectIdempotent,
-  logMemoApprovalRejected,
-} from "@/lib/logging/audit-log";
+import { logMemoApprovalRejectIdempotent, logMemoApprovalRejected } from "@/lib/logging/audit-log";
 import type { PendingActionStatus } from "@/types/pending-action";
 
 import type { RejectMemoResult } from "./types";

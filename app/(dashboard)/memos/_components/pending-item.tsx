@@ -21,8 +21,7 @@ export default function PendingItem({ item }: { item: SaveMemoPending }) {
   const [isPending, startTransition] = useTransition();
   const [confirmedStrong, setConfirmedStrong] = useState(!item.sensitivity_flag);
 
-  const busy =
-    status.kind === "confirming" || status.kind === "rejecting" || isPending;
+  const busy = status.kind === "confirming" || status.kind === "rejecting" || isPending;
 
   async function call(path: "confirm" | "reject") {
     setStatus({ kind: path === "confirm" ? "confirming" : "rejecting" });
@@ -85,6 +84,8 @@ export default function PendingItem({ item }: { item: SaveMemoPending }) {
           )}
           <p className="text-xs opacity-60">
             요청 시각 {new Date(item.created_at).toLocaleString()}
+            {item.payload.project_key ? ` · project: ${item.payload.project_key}` : ""}
+            {item.payload.tags?.length ? ` · tags: ${item.payload.tags.join(", ")}` : ""}
           </p>
         </div>
         {item.sensitivity_flag && (
@@ -104,9 +105,7 @@ export default function PendingItem({ item }: { item: SaveMemoPending }) {
             checked={confirmedStrong}
             onChange={(e) => setConfirmedStrong(e.target.checked)}
           />
-          <span>
-            민감정보가 포함될 수 있음을 확인하였고, 그래도 저장을 승인합니다.
-          </span>
+          <span>민감정보가 포함될 수 있음을 확인하였고, 그래도 저장을 승인합니다.</span>
         </label>
       )}
 
@@ -147,25 +146,18 @@ function LocalStatusLine({ status }: { status: LocalStatus }) {
       return (
         <span className="text-xs text-emerald-600 dark:text-emerald-400">
           저장되었습니다.{" "}
-          <Link
-            href={`/memos/${status.memoId}` as Route}
-            className="underline underline-offset-2"
-          >
+          <Link href={`/memos/${status.memoId}` as Route} className="underline underline-offset-2">
             메모 열기
           </Link>
         </span>
       );
     case "blocked":
       return (
-        <span className="text-xs text-amber-600 dark:text-amber-400">
-          차단됨: {status.reason}
-        </span>
+        <span className="text-xs text-amber-600 dark:text-amber-400">차단됨: {status.reason}</span>
       );
     case "error":
       return (
-        <span className="text-xs text-red-600 dark:text-red-400">
-          처리 실패: {status.message}
-        </span>
+        <span className="text-xs text-red-600 dark:text-red-400">처리 실패: {status.message}</span>
       );
   }
 }
