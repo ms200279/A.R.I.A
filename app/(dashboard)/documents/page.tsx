@@ -1,23 +1,33 @@
 import Link from "next/link";
 import type { Route } from "next";
+import { notFound } from "next/navigation";
 
+import DocumentUploadPanel from "@/components/documents/DocumentUploadPanel";
+import DocumentsListSection from "@/components/documents/DocumentsListSection";
 import { listDocuments } from "@/lib/documents/list-documents";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function DocumentsPage() {
+type PageProps = { searchParams: Promise<{ sort?: string }> };
+
+export default async function DocumentsPage({ searchParams }: PageProps) {
+  const { sort: sortParam } = await searchParams;
+  const sortOpt =
+    sortParam === "created_at" || sortParam === "updated_at" ? sortParam : undefined;
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user?.id) {
-    return null;
+    notFound();
   }
 
   const { items, next_cursor, sort } = await listDocuments(supabase, {
     scope_user_id: user.id,
+    sort: sortOpt,
     audit: {
       actor_id: user.id,
       actor_email: user.email ?? null,
@@ -38,69 +48,21 @@ export default async function DocumentsPage() {
             </span>
             .
           </p>
+          <p className="text-xs text-[var(--text-tertiary)]">
+            정렬은{" "}
+            <Link href={"/documents?sort=created_at" as Route} className="text-[var(--accent)] hover:underline">
+              생성일
+            </Link>
+            {" · "}
+            <Link href={"/documents?sort=updated_at" as Route} className="text-[var(--accent)] hover:underline">
+              수정일
+            </Link>
+          </p>
         </div>
 
-        {items.length === 0 ? (
-          <p className="rounded-lg border border-white/10 bg-white/[0.02] p-6 text-sm text-[var(--text-tertiary)]">
-            아직 문서가 없습니다. API{" "}
-            <code className="rounded bg-white/10 px-1">POST /api/documents/upload</code>로 파일을
-            올리면 여기에 나타납니다.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {items.map((doc) => (
-              <li key={doc.id}>
-                <Link
-                  href={`/documents/${doc.id}` as Route}
-                  className="block rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-white/15 hover:bg-white/[0.05]"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-[var(--text-primary)]">
-                        {doc.title?.trim() || doc.file_name || "제목 없음"}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">
-                        {doc.file_name ?? "—"} · {doc.file_type ?? "타입 미상"}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-1.5 text-[10px] uppercase tracking-wide">
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[var(--text-secondary)]">
-                        파싱 {doc.parsing_status ?? "—"}
-                      </span>
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[var(--text-secondary)]">
-                        요약 {doc.summary_status ?? "—"}
-                      </span>
-                      {doc.latest_summary_exists ? (
-                        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-200/90">
-                          요약 있음
-                        </span>
-                      ) : (
-                        <span className="rounded bg-white/5 px-1.5 py-0.5 text-[var(--text-tertiary)]">
-                          요약 없음
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {doc.latest_summary_preview ? (
-                    <p className="mt-2 line-clamp-2 text-xs text-[var(--text-secondary)]">
-                      {doc.latest_summary_preview}
-                    </p>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DocumentUploadPanel />
 
-        {next_cursor ? (
-          <p className="text-xs text-[var(--text-tertiary)]">
-            다음 페이지:{" "}
-            <code className="rounded bg-white/10 px-1">
-              GET /api/documents?cursor=
-              {encodeURIComponent(next_cursor)}
-            </code>
-          </p>
-        ) : null}
+        <DocumentsListSection initialItems={items} initialNextCursor={next_cursor} sort={sort} />
       </section>
     </div>
   );

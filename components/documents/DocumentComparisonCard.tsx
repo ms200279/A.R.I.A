@@ -1,44 +1,14 @@
-import { tryParseCompareResult } from "@/lib/documents/parse-stored-document-results";
 import type { DocumentDetailLatestBlock } from "@/types/document-ui";
 
+import { ComparisonResultBody, formatComparisonWhen } from "./comparison-display-utils";
 import DocumentEmptyState from "./DocumentEmptyState";
-
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("ko-KR", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
 
 type Props = {
   latest: DocumentDetailLatestBlock | null;
 };
 
-function FieldBlock({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--text-tertiary)]">
-        {label}
-      </h3>
-      <div className="text-sm leading-relaxed text-[var(--text-secondary)] whitespace-pre-wrap break-words">
-        {children}
-      </div>
-    </div>
-  );
-}
-
 /**
- * 비교 결과는 JSON(구조화) 또는 평문으로 저장될 수 있다. 이후 비교 히스토리 UI에서 재사용 가능.
+ * 비교 결과는 JSON(구조화) 또는 평문으로 저장될 수 있다. 본문은 ComparisonResultBody 와 공유.
  */
 export default function DocumentComparisonCard({ latest }: Props) {
   if (!latest?.content?.trim()) {
@@ -53,8 +23,6 @@ export default function DocumentComparisonCard({ latest }: Props) {
     );
   }
 
-  const parsed = tryParseCompareResult(latest.content);
-
   return (
     <section className="space-y-2">
       <h2 className="text-base font-medium text-[var(--text-primary)]">비교</h2>
@@ -63,28 +31,10 @@ export default function DocumentComparisonCard({ latest }: Props) {
           <span className="rounded-md bg-[var(--warning-soft)] px-2 py-0.5 text-[var(--warning)]">
             {latest.summary_type}
           </span>
-          <time dateTime={latest.created_at}>{formatWhen(latest.created_at)}</time>
+          <time dateTime={latest.created_at}>{formatComparisonWhen(latest.created_at)}</time>
         </div>
 
-        {parsed ? (
-          <div className="space-y-4">
-            {parsed.compared_document_ids?.length ? (
-              <p className="text-xs text-[var(--text-tertiary)]">
-                비교 문서 ID:{" "}
-                <span className="font-mono text-[var(--text-secondary)]">
-                  {parsed.compared_document_ids.join(", ")}
-                </span>
-              </p>
-            ) : null}
-            <FieldBlock label="차이 요약">{parsed.summary_of_differences}</FieldBlock>
-            <FieldBlock label="공통점">{parsed.summary_of_common_points}</FieldBlock>
-            <FieldBlock label="갈등·누락">{parsed.notable_gaps_or_conflicts}</FieldBlock>
-          </div>
-        ) : (
-          <div className="text-sm leading-relaxed text-[var(--text-secondary)] whitespace-pre-wrap break-words">
-            {latest.content}
-          </div>
-        )}
+        <ComparisonResultBody content={latest.content} />
       </article>
     </section>
   );

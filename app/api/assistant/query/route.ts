@@ -64,5 +64,6 @@ export async function POST(request: Request) {
     pending_action_ids: result.data.pending_action_ids,
     iterations: result.data.iterations,
     provider: result.provider,
+    ui_attachments: result.data.ui_attachments,
   });
 }

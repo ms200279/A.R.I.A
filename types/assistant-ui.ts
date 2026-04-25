@@ -1,3 +1,5 @@
+import type { AssistantMessageAttachment } from "./assistant-attachments";
+
 /**
  * Assistant 대시보드 UI 전용 타입.
  *
@@ -44,6 +46,8 @@ export type AssistantChatMessage = {
   createdAt: number;
   /** approval_required / proposed_action 에서 사용. 추후 카드 렌더링에 활용. */
   pendingActionIds?: string[];
+  /** 문서 비교·분석 등 인라인 카드(저장된 summary 조각만). */
+  attachments?: AssistantMessageAttachment[];
   /** blocked 일 때의 사유 코드. */
   reason?: string;
   /** 사용한 provider (디버깅/표시용). */

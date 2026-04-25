@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { AssistantMessageAttachment } from "@/types/assistant-attachments";
+
 /**
  * Assistant 레이어에서 공용으로 쓰는 타입.
  * Route Handler → run-assistant → execute-tool 사이에서 흐른다.
@@ -61,6 +63,8 @@ export type RunAssistantResult = {
   tool_trace: ToolCallTrace[];
   pending_action_ids: string[];
   iterations: number;
+  /** 클라이언트 인라인 카드용(원문·청크 미포함). */
+  ui_attachments: AssistantMessageAttachment[];
 };
 
 export type RunAssistantFailure = {

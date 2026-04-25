@@ -135,9 +135,14 @@ export type DocumentListItemPayload = {
   title: string | null;
   file_name: string | null;
   file_type: string | null;
+  /** 목록·폴링 UI 에서 행 수명·실패 판정 보조. */
+  status: DocumentStatus;
   parsing_status: DocumentParsingStatus | null;
   preprocessing_status: DocumentPreprocessingStatus | null;
   summary_status: DocumentSummaryPipelineStatus | null;
+  parsing_error_code: string | null;
+  /** 동일 파일 중복 안내(선택). 원문 아님. */
+  sha256_hash: string | null;
   created_at: string;
   updated_at: string;
   latest_summary_exists: boolean;
@@ -161,9 +166,13 @@ export type DocumentDetailPayload = {
   file_size: number | null;
   /** 현재는 업로드 파이프라인 기준. storage_path 가 있으면 `upload`, 없으면 `pending`. */
   source: "upload" | "pending";
+  /** DB `documents.status`. 폴링 종료·실패 판정에 사용. */
+  status: DocumentStatus;
   parsing_status: DocumentParsingStatus | null;
   preprocessing_status: DocumentPreprocessingStatus | null;
   summary_status: DocumentSummaryPipelineStatus | null;
+  parsing_error_code: string | null;
+  sha256_hash: string | null;
   created_at: string;
   updated_at: string;
   latest_summary: DocumentLatestSummaryPublic | null;
@@ -179,34 +188,22 @@ export type DocumentDetailPayload = {
   can_compare: boolean;
 };
 
-/** 비교 히스토리 앵커 역할. */
-export type ComparisonAnchorRole = "primary" | "peer";
+export type {
+  AssistantComparisonDetailAttachment,
+  ComparisonAnchorRole,
+  ComparisonDetailPayload,
+  ComparisonHistoryCurrentContext,
+  ComparisonHistoryDetailPayload,
+  ComparisonHistoryListItemPayload,
+} from "./comparisons";
 
-/** GET /api/comparisons/[id] 본문. */
-export type ComparisonHistoryDetailPayload = {
-  comparison_id: string;
-  summary_id: string | null;
-  primary_document_id: string;
-  created_at: string;
-  updated_at: string;
-  content: string;
-  source_ranges: Record<string, unknown> | null;
-  documents: Array<{
-    id: string;
-    title: string | null;
-    file_name: string | null;
-    anchor_role: ComparisonAnchorRole;
-    sort_order: number;
-  }>;
+/** POST /api/documents/upload 성공(201). */
+export type DocumentUploadSuccessResponse = {
+  document: Document;
 };
 
-/** GET /api/documents/[id]/comparisons 목록 항목. */
-export type ComparisonHistoryListItemPayload = {
-  comparison_id: string;
-  summary_id: string | null;
-  primary_document_id: string;
-  created_at: string;
-  document_count: number;
-  other_documents_preview: string;
-  content_preview: string;
+/** POST /api/documents/upload 실패 본문. */
+export type DocumentUploadErrorResponse = {
+  error: string;
+  document_id?: string | null;
 };

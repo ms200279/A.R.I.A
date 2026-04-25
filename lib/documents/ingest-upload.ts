@@ -15,7 +15,7 @@ import {
   logDocumentUploadStorageFailed,
   logDocumentUploadStorageSucceeded,
 } from "@/lib/logging/audit-log";
-import { validateDocumentUpload } from "@/lib/policies/document-upload";
+import { validateDocumentUpload } from "@/lib/documents/supported-file-types";
 import type { Document } from "@/types/document";
 
 import { DOCUMENT_ROW_SELECT } from "./document-columns";
