@@ -2,6 +2,10 @@
 
 import type { ChatMessage } from "@/types/assistant-ui";
 
+import DocumentAnalysisInlineCard from "./cards/DocumentAnalysisInlineCard";
+import DocumentComparisonDetailInlineCard from "./cards/DocumentComparisonDetailInlineCard";
+import DocumentComparisonInlineCard from "./cards/DocumentComparisonInlineCard";
+
 type Props = { message: ChatMessage };
 
 /**
@@ -45,7 +49,7 @@ export default function MessageBubble({ message }: Props) {
   }
 
   // assistant
-  const { kind, content, reason } = message;
+  const { kind, content, reason, attachments } = message;
   const isBlocked = kind === "blocked";
   const isProposal =
     kind === "proposed_action" || kind === "approval_required";
@@ -99,6 +103,30 @@ export default function MessageBubble({ message }: Props) {
             </ExtraSlot>
           ) : null}
         </div>
+
+        {attachments && attachments.length > 0 ? (
+          <div className="space-y-2" aria-label="문서 관련 카드">
+            {attachments.map((att, i) => (
+              <div
+                key={`${att.kind}-${i}-${
+                  "documentId" in att
+                    ? att.documentId
+                    : "context_document_id" in att
+                      ? att.context_document_id
+                      : i
+                }`}
+              >
+                {att.kind === "comparison_history_item" || att.kind === "document_latest_comparison_card" ? (
+                  <DocumentComparisonInlineCard data={att} />
+                ) : att.kind === "comparison_detail" ? (
+                  <DocumentComparisonDetailInlineCard data={att} />
+                ) : att.kind === "document_latest_analysis_card" ? (
+                  <DocumentAnalysisInlineCard data={att} />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

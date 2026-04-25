@@ -3,11 +3,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { sanitizeStoredSummaryForRead } from "@/lib/safety/document-text";
-import type {
-  ComparisonAnchorRole,
-  ComparisonHistoryDetailPayload,
-} from "@/types/document";
+import type { ComparisonHistoryDetailPayload } from "@/types/document";
 
+import { normalizeComparisonAnchorRole } from "./comparison-anchor-role";
 import { normalizeEmbeddedDocumentMeta } from "./supabase-embed-doc";
 
 export type GetComparisonHistoryContext = {
@@ -25,6 +23,7 @@ export async function getComparisonHistoryDetail(
   supabase: SupabaseClient,
   comparisonId: string,
   ctx: GetComparisonHistoryContext,
+  options?: { context_document_id?: string | null },
 ): Promise<GetComparisonHistoryResult> {
   const { data, error } = await supabase
     .from("comparison_histories")
@@ -79,10 +78,15 @@ export async function getComparisonHistoryDetail(
       id: a.document_id,
       title: doc?.title ?? null,
       file_name: doc?.file_name ?? null,
-      anchor_role: (a.anchor_role === "primary" ? "primary" : "peer") as ComparisonAnchorRole,
+      anchor_role: normalizeComparisonAnchorRole(a.anchor_role),
       sort_order: a.sort_order,
     };
   });
+
+  const contextDocId = (options?.context_document_id ?? "").trim() || null;
+  const contextRow = contextDocId
+    ? anchors.find((a) => a.document_id === contextDocId)
+    : undefined;
 
   const payload: ComparisonHistoryDetailPayload = {
     comparison_id: row.id,
@@ -93,6 +97,17 @@ export async function getComparisonHistoryDetail(
     content: sanitizeStoredSummaryForRead(row.content),
     source_ranges: row.source_ranges,
     documents,
+    ...(contextDocId
+      ? {
+          current_context: {
+            document_id: contextDocId,
+            anchor_role: contextRow
+              ? normalizeComparisonAnchorRole(contextRow.anchor_role)
+              : null,
+            sort_order: contextRow?.sort_order ?? null,
+          },
+        }
+      : {}),
   };
 
   return { ok: true, data: payload };

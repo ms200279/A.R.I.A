@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import { parseAssistantUiAttachments } from "@/lib/assistant/normalize-ui-attachments";
 import type {
   AssistantAnswerKind,
   AssistantChatMessage,
@@ -35,6 +36,7 @@ type RawQueryResponse = {
   answer: RawAssistantAnswer;
   pending_action_ids?: string[];
   provider?: string;
+  ui_attachments?: unknown;
 };
 
 export type UseAssistantChat = {
@@ -191,6 +193,7 @@ function normalizeAnswer(raw: Partial<RawQueryResponse>): AssistantChatMessage {
   const baseId = makeId();
   const createdAt = Date.now();
   const provider = typeof raw.provider === "string" ? raw.provider : undefined;
+  const attachments = parseAssistantUiAttachments(raw.ui_attachments);
 
   if (!answer || typeof answer !== "object") {
     return {
@@ -201,6 +204,7 @@ function normalizeAnswer(raw: Partial<RawQueryResponse>): AssistantChatMessage {
       reason: "invalid_response_shape",
       createdAt,
       provider,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
   }
 
@@ -222,6 +226,7 @@ function normalizeAnswer(raw: Partial<RawQueryResponse>): AssistantChatMessage {
       pendingActionIds: ids,
       createdAt,
       provider,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
   }
 
@@ -238,6 +243,7 @@ function normalizeAnswer(raw: Partial<RawQueryResponse>): AssistantChatMessage {
       reason,
       createdAt,
       provider,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
   }
 
@@ -248,6 +254,7 @@ function normalizeAnswer(raw: Partial<RawQueryResponse>): AssistantChatMessage {
     content,
     createdAt,
     provider,
+    attachments: attachments.length > 0 ? attachments : undefined,
   };
 }
 

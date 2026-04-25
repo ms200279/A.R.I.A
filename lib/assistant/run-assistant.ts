@@ -18,9 +18,15 @@ import type {
   AssistantProviderRunResult,
   ProviderToolExecutor,
 } from "./providers";
+import { createClient } from "@/lib/supabase/server";
+
+import { enrichDocumentDetailAttachmentsWithComparisonHistory } from "./enrich-comparison-attachments";
 import { mapAssistantAnswer } from "./response-mapper";
 import { SYSTEM_PROMPT } from "./system-prompt";
+import { mergeDocumentDetailAttachments } from "./ui-attachments";
 import { NEUTRAL_TOOL_DEFS, TOOL_TIERS, type ToolName } from "./tools";
+import type { AssistantMessageAttachment } from "@/types/assistant-attachments";
+
 import type {
   AssistantRunContext,
   RunAssistantResult,
@@ -135,11 +141,22 @@ export async function runAssistant(
   // 3) tool executor + trace 집계
   const toolTrace: ToolCallTrace[] = [];
   const pendingActionIds: string[] = [];
+  let uiAttachments: AssistantMessageAttachment[] = [];
   const toolExecutor: ProviderToolExecutor = async (name, args) => {
     const result = await executeTool(name, args, ctx);
     trackTrace(toolTrace, name, result, toolTrace.length);
     if (result.kind === "pending_action") {
       pendingActionIds.push(result.pending_action_id);
+    }
+    if (result.kind === "data" && result.name === "get_document_detail") {
+      uiAttachments = mergeDocumentDetailAttachments(uiAttachments, result.payload);
+      const supabase = await createClient();
+      uiAttachments = await enrichDocumentDetailAttachmentsWithComparisonHistory(
+        supabase,
+        ctx.user_id,
+        uiAttachments,
+        result.payload,
+      );
     }
     return result;
   };
@@ -217,6 +234,7 @@ export async function runAssistant(
       tool_trace: toolTrace,
       pending_action_ids: pendingActionIds,
       iterations: runResult.iterations,
+      ui_attachments: uiAttachments,
     },
   };
 }
@@ -245,6 +263,7 @@ function finalizeBlocked(params: {
       tool_trace: params.toolTrace ?? [],
       pending_action_ids: params.pendingActionIds ?? [],
       iterations: 0,
+      ui_attachments: [],
     },
   };
 }

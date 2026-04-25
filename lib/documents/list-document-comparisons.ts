@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeStoredSummaryForRead } from "@/lib/safety/document-text";
 import type { ComparisonHistoryListItemPayload } from "@/types/document";
 
+import { normalizeComparisonAnchorRole } from "./comparison-anchor-role";
 import { normalizeEmbeddedDocumentMeta } from "./supabase-embed-doc";
 
 const CONTENT_PREVIEW_MAX = 160;
@@ -31,11 +32,23 @@ export async function listDocumentComparisons(
 
   const { data: links } = await supabase
     .from("comparison_history_documents")
-    .select("comparison_history_id")
+    .select("comparison_history_id, anchor_role, sort_order")
     .eq("document_id", documentId)
     .eq("user_id", ctx.user_id);
 
-  const hids = [...new Set(links?.map((l) => l.comparison_history_id as string) ?? [])];
+  const selfAnchorByHist = new Map<
+    string,
+    { anchor_role: string; sort_order: number }
+  >();
+  for (const l of links ?? []) {
+    const hid = l.comparison_history_id as string;
+    selfAnchorByHist.set(hid, {
+      anchor_role: l.anchor_role as string,
+      sort_order: l.sort_order as number,
+    });
+  }
+
+  const hids = [...selfAnchorByHist.keys()];
   if (!hids.length) return [];
 
   const { data: hists } = await supabase
@@ -83,6 +96,12 @@ export async function listDocumentComparisons(
         ? `${sanitized.slice(0, CONTENT_PREVIEW_MAX - 1)}…`
         : sanitized;
 
+    const selfRow = selfAnchorByHist.get(hid);
+    const current_document_anchor_role = selfRow
+      ? normalizeComparisonAnchorRole(selfRow.anchor_role)
+      : null;
+    const current_document_sort_order = selfRow?.sort_order ?? null;
+
     return {
       comparison_id: hid,
       summary_id: (h.summary_id as string | null) ?? null,
@@ -91,6 +110,8 @@ export async function listDocumentComparisons(
       document_count: alist.length,
       other_documents_preview: labels.join(", ") || "—",
       content_preview,
+      current_document_anchor_role,
+      current_document_sort_order,
     };
   });
 }

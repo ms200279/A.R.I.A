@@ -50,10 +50,12 @@ type ListRow = Pick<
   | "title"
   | "file_name"
   | "file_type"
+  | "sha256_hash"
   | "status"
   | "parsing_status"
   | "preprocessing_status"
   | "summary_status"
+  | "parsing_error_code"
   | "created_at"
   | "updated_at"
 >;
@@ -258,9 +260,12 @@ export async function listDocuments(
       title: row.title,
       file_name: row.file_name,
       file_type: row.file_type,
+      status: row.status,
       parsing_status: row.parsing_status,
       preprocessing_status: row.preprocessing_status,
       summary_status: row.summary_status,
+      parsing_error_code: row.parsing_error_code,
+      sha256_hash: row.sha256_hash,
       created_at: row.created_at,
       updated_at: row.updated_at,
       latest_summary_exists,
